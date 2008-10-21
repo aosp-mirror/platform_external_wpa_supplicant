@@ -884,6 +884,35 @@ int wpa_driver_test_set_bssid(void *priv, const u8 *bssid)
 }
 #endif /* CONFIG_CLIENT_MLME */
 
+int wpa_driver_test_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len )
+{
+    struct wpa_driver_test_data *drv = (struct wpa_driver_test_data *)priv;
+    int ret = -1;
+    
+    wpa_printf(MSG_DEBUG, "%s %s", __func__, cmd);
+    if( os_strncasecmp(cmd, "start", 5) == 0 ) {
+        wpa_printf(MSG_DEBUG,"Start command");
+        ret = 0;
+    }
+    else if( os_strncasecmp(cmd, "stop", 4) == 0 ) {
+        wpa_printf(MSG_DEBUG,"Stop command");
+        ret = 0;
+    }
+    else if( os_strncasecmp(cmd, "macaddr", 7) == 0 ) {
+        u8 *macaddr = (u8 *)wpa_driver_test_get_mac_addr(priv);
+        wpa_printf(MSG_DEBUG,"Macaddr command");
+        wpa_printf(MSG_DEBUG, "   Macaddr = " MACSTR, MAC2STR(macaddr));
+        ret = os_snprintf(buf, buf_len, "Macaddr = " MACSTR "\n", MAC2STR(macaddr));
+    }
+    else if( os_strncasecmp(cmd, "rssi", 4) == 0 ) {
+        wpa_printf(MSG_DEBUG,"RSSI command");
+        ret = os_snprintf(buf, buf_len, MACSTR " Rssi %d\n", MAC2STR(drv->bssid), -10);
+    } else if (os_strncasecmp(cmd, "linkspeed", 9) == 0) {
+    	wpa_printf(MSG_DEBUG, "LinkSpeed command");
+    	ret = os_snprintf(buf, buf_len, "LinkSpeed %u\n", 11);
+    }
+    return ret;
+}
 
 const struct wpa_driver_ops wpa_driver_test_ops = {
 	"test",
@@ -920,7 +949,7 @@ const struct wpa_driver_ops wpa_driver_test_ops = {
 	wpa_driver_test_set_bssid,
 	wpa_driver_test_send_mlme,
 	wpa_driver_test_mlme_add_sta,
-	wpa_driver_test_mlme_remove_sta
+	wpa_driver_test_mlme_remove_sta,
 #else /* CONFIG_CLIENT_MLME */
 	NULL /* get_hw_feature_data */,
 	NULL /* set_channel */,
@@ -928,6 +957,7 @@ const struct wpa_driver_ops wpa_driver_test_ops = {
 	NULL /* set_bssid */,
 	NULL /* send_mlme */,
 	NULL /* mlme_add_sta */,
-	NULL /* mlme_remove_sta */
+	NULL /* mlme_remove_sta */,
 #endif /* CONFIG_CLIENT_MLME */
+    wpa_driver_test_driver_cmd
 };

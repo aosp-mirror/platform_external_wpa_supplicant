@@ -24,10 +24,14 @@
 #include <readline/history.h>
 #endif /* CONFIG_READLINE */
 
+#define CTRL_INTERFACE_2_SOCKETS
+
 #include "wpa_ctrl.h"
 #include "common.h"
 #include "version.h"
-
+#ifdef ANDROID
+#include <cutils/properties.h>
+#endif
 
 static const char *wpa_cli_version =
 "wpa_cli v" VERSION_STR "\n"
@@ -109,6 +113,9 @@ static const char *commands_help =
 "  passphrase <network id> <passphrase> = configure private key passphrase\n"
 "    for an SSID\n"
 "  bssid <network id> <BSSID> = set preferred BSSID for an SSID\n"
+"  blacklist [<BSSID>] = add a BSSID to the blacklist\n"
+"  blacklist clear = clear the blacklist\n"
+"  blacklist = display the blacklist\n"
 "  list_networks = list configured networks\n"
 "  select_network <network id> = select a network (disable others)\n"
 "  enable_network <network id> = enable a network\n"
@@ -134,11 +141,16 @@ static const char *commands_help =
 "  quit = exit wpa_cli\n";
 
 static struct wpa_ctrl *ctrl_conn;
+static struct wpa_ctrl *monitor_conn;
 static int wpa_cli_quit = 0;
 static int wpa_cli_attached = 0;
 static int wpa_cli_connected = 0;
 static int wpa_cli_last_id = 0;
-static const char *ctrl_iface_dir = "/var/run/wpa_supplicant";
+#ifdef ANDROID
+static const char *ctrl_iface_dir = "/data/misc/wifi/wpa_supplicant";
+#else
+static const char *ctrl_iface_dir = "/tmp/run/wpa_supplicant";
+#endif
 static char *ctrl_ifname = NULL;
 static const char *pid_file = NULL;
 static const char *action_file = NULL;
@@ -164,9 +176,10 @@ static void usage(void)
 
 static struct wpa_ctrl * wpa_cli_open_connection(const char *ifname)
 {
+    struct wpa_ctrl *cur_conn;
 #if defined(CONFIG_CTRL_IFACE_UDP) || defined(CONFIG_CTRL_IFACE_NAMED_PIPE)
-	ctrl_conn = wpa_ctrl_open(ifname);
-	return ctrl_conn;
+	cur_conn = wpa_ctrl_open(ifname);
+	return cur_conn;
 #else /* CONFIG_CTRL_IFACE_UDP || CONFIG_CTRL_IFACE_NAMED_PIPE */
 	char *cfile;
 	int flen;
@@ -174,15 +187,31 @@ static struct wpa_ctrl * wpa_cli_open_connection(const char *ifname)
 	if (ifname == NULL)
 		return NULL;
 
+#ifdef ANDROID
+	if (access(ctrl_iface_dir, F_OK) < 0)
+		cfile = (char *)ifname;
+	else {
+#endif
 	flen = os_strlen(ctrl_iface_dir) + os_strlen(ifname) + 2;
 	cfile = os_malloc(flen);
 	if (cfile == NULL)
 		return NULL;
 	os_snprintf(cfile, flen, "%s/%s", ctrl_iface_dir, ifname);
+#ifdef ANDROID
+        }
+#endif
 
-	ctrl_conn = wpa_ctrl_open(cfile);
-	os_free(cfile);
-	return ctrl_conn;
+	cur_conn = wpa_ctrl_open(cfile); /* Dm: */
+#ifdef CTRL_INTERFACE_2_SOCKETS
+	monitor_conn = wpa_ctrl_open(cfile);
+#else
+	monitor_conn = cur_conn;
+#endif
+#ifdef ANDROID
+	if (cfile != ifname)
+#endif
+		os_free(cfile);
+	return cur_conn;
 #endif /* CONFIG_CTRL_IFACE_UDP || CONFIG_CTRL_IFACE_NAMED_PIPE */
 }
 
@@ -193,11 +222,14 @@ static void wpa_cli_close_connection(void)
 		return;
 
 	if (wpa_cli_attached) {
-		wpa_ctrl_detach(ctrl_conn);
+		wpa_ctrl_detach(monitor_conn);
 		wpa_cli_attached = 0;
 	}
+#ifdef CTRL_INTERFACE_2_SOCKETS
+	wpa_ctrl_close(monitor_conn);
+#endif
 	wpa_ctrl_close(ctrl_conn);
-	ctrl_conn = NULL;
+	ctrl_conn = monitor_conn = NULL;
 }
 
 
@@ -209,7 +241,7 @@ static void wpa_cli_msg_cb(char *msg, size_t len)
 
 static int _wpa_ctrl_command(struct wpa_ctrl *ctrl, char *cmd, int print)
 {
-	char buf[2048];
+	char buf[4096];
 	size_t len;
 	int ret;
 
@@ -661,6 +693,32 @@ static int wpa_cli_cmd_bssid(struct wpa_ctrl *ctrl, int argc, char *argv[])
 	return wpa_ctrl_command(ctrl, cmd);
 }
 
+#ifdef ANDROID
+static int wpa_cli_cmd_blacklist(struct wpa_ctrl *ctrl, int argc, char *argv[])
+{
+	char cmd[256], *pos, *end;
+	int i, ret;
+
+	end = cmd + sizeof(cmd);
+	pos = cmd;
+	ret = os_snprintf(pos, end - pos, "BLACKLIST");
+	if (ret < 0 || ret >= end - pos) {
+		printf("Too long BLACKLIST command.\n");
+		return -1;
+	}
+	pos += ret;
+	for (i = 0; i < argc; i++) {
+		ret = os_snprintf(pos, end - pos, " %s", argv[i]);
+		if (ret < 0 || ret >= end - pos) {
+			printf("Too long BLACKLIST command.\n");
+			return -1;
+		}
+		pos += ret;
+	}
+
+	return wpa_ctrl_command(ctrl, cmd);
+}
+#endif
 
 static int wpa_cli_cmd_list_networks(struct wpa_ctrl *ctrl, int argc,
 				     char *argv[])
@@ -900,9 +958,9 @@ static int wpa_cli_cmd_interface(struct wpa_ctrl *ctrl, int argc, char *argv[])
 	os_free(ctrl_ifname);
 	ctrl_ifname = os_strdup(argv[0]);
 
-	if (wpa_cli_open_connection(ctrl_ifname)) {
+	if ((ctrl_conn = wpa_cli_open_connection(ctrl_ifname)) != NULL) {
 		printf("Connected to interface '%s.\n", ctrl_ifname);
-		if (wpa_ctrl_attach(ctrl_conn) == 0) {
+		if (wpa_ctrl_attach(monitor_conn) == 0) {
 			wpa_cli_attached = 1;
 		} else {
 			printf("Warning: Failed to attach to "
@@ -973,6 +1031,24 @@ static int wpa_cli_cmd_interface_remove(struct wpa_ctrl *ctrl, int argc,
 	return wpa_ctrl_command(ctrl, cmd);
 }
 
+static int wpa_cli_cmd_driver(struct wpa_ctrl *ctrl, int argc,
+				      char *argv[])
+{
+	char cmd[32];
+
+	if (argc < 1) {
+		printf("Invalid DRIVER command: needs one argument (cmd)\n");
+		return -1;
+	}
+
+	if (argc > 1)
+		os_snprintf(cmd, sizeof(cmd), "DRIVER %s %s", argv[0], argv[1]);
+	else
+		os_snprintf(cmd, sizeof(cmd), "DRIVER %s", argv[0]);
+	cmd[sizeof(cmd) - 1] = '\0';
+
+	return wpa_ctrl_command(ctrl, cmd);
+}
 
 struct wpa_cli_cmd {
 	const char *cmd;
@@ -1001,6 +1077,9 @@ static struct wpa_cli_cmd wpa_cli_commands[] = {
 	{ "otp", wpa_cli_cmd_otp },
 	{ "passphrase", wpa_cli_cmd_passphrase },
 	{ "bssid", wpa_cli_cmd_bssid },
+#ifdef ANDROID
+	{ "blacklist", wpa_cli_cmd_blacklist },
+#endif
 	{ "list_networks", wpa_cli_cmd_list_networks },
 	{ "select_network", wpa_cli_cmd_select_network },
 	{ "enable_network", wpa_cli_cmd_enable_network },
@@ -1021,6 +1100,7 @@ static struct wpa_cli_cmd wpa_cli_commands[] = {
 	{ "interface_remove", wpa_cli_cmd_interface_remove },
 	{ "ap_scan", wpa_cli_cmd_ap_scan },
 	{ "stkstart", wpa_cli_cmd_stkstart },
+	{ "driver", wpa_cli_cmd_driver },
 	{ NULL, NULL }
 };
 
@@ -1063,6 +1143,9 @@ static int wpa_request(struct wpa_ctrl *ctrl, int argc, char *argv[])
 		printf("Unknown command '%s'\n", argv[0]);
 		ret = 1;
 	} else {
+        if( os_strncasecmp( "level", argv[0], os_strlen(argv[0]) ) == 0 )  {
+            ctrl = monitor_conn;
+        }
 		ret = match->handler(ctrl, argc - 1, &argv[1]);
 	}
 
@@ -1174,7 +1257,7 @@ static void wpa_cli_reconnect(void)
 	ctrl_conn = wpa_cli_open_connection(ctrl_ifname);
 	if (ctrl_conn) {
 		printf("Connection to wpa_supplicant re-established\n");
-		if (wpa_ctrl_attach(ctrl_conn) == 0) {
+		if (wpa_ctrl_attach(monitor_conn) == 0) {
 			wpa_cli_attached = 1;
 		} else {
 			printf("Warning: Failed to attach to "
@@ -1188,7 +1271,7 @@ static void wpa_cli_recv_pending(struct wpa_ctrl *ctrl, int in_read,
 				 int action_monitor)
 {
 	int first = 1;
-	if (ctrl_conn == NULL) {
+	if (ctrl == NULL) {
 		wpa_cli_reconnect();
 		return;
 	}
@@ -1282,7 +1365,7 @@ static void wpa_cli_interactive(void)
 #endif /* CONFIG_READLINE */
 
 	do {
-		wpa_cli_recv_pending(ctrl_conn, 0, 0);
+		wpa_cli_recv_pending(monitor_conn, 0, 0);
 #ifndef CONFIG_NATIVE_WINDOWS
 		alarm(1);
 #endif /* CONFIG_NATIVE_WINDOWS */
@@ -1306,7 +1389,7 @@ static void wpa_cli_interactive(void)
 #endif /* CONFIG_NATIVE_WINDOWS */
 		if (cmd == NULL)
 			break;
-		wpa_cli_recv_pending(ctrl_conn, 0, 0);
+		wpa_cli_recv_pending(monitor_conn, 0, 0);
 		pos = cmd;
 		while (*pos != '\0') {
 			if (*pos == '\n') {
@@ -1442,10 +1525,10 @@ static void wpa_cli_alarm(int sig)
 		       "reconnect\n");
 		wpa_cli_close_connection();
 	}
-	if (!ctrl_conn)
+	if (!monitor_conn)
 		wpa_cli_reconnect();
-	if (ctrl_conn)
-		wpa_cli_recv_pending(ctrl_conn, 1, 0);
+	if (monitor_conn)
+		wpa_cli_recv_pending(monitor_conn, 1, 0);
 	alarm(1);
 }
 #endif /* CONFIG_NATIVE_WINDOWS */
@@ -1458,8 +1541,17 @@ static char * wpa_cli_get_default_ifname(void)
 #ifdef CONFIG_CTRL_IFACE_UNIX
 	struct dirent *dent;
 	DIR *dir = opendir(ctrl_iface_dir);
-	if (!dir)
+	if (!dir) {
+#ifdef ANDROID
+		char ifprop[PROPERTY_VALUE_MAX];
+		if (property_get("wifi.interface", ifprop, NULL) != 0) {
+			ifname = os_strdup(ifprop);
+			printf("Using interface '%s'\n", ifname);
+			return ifname;
+		}
+#endif
 		return NULL;
+	}
 	while ((dent = readdir(dir))) {
 #ifdef _DIRENT_HAVE_D_TYPE
 		/*
@@ -1481,7 +1573,7 @@ static char * wpa_cli_get_default_ifname(void)
 #endif /* CONFIG_CTRL_IFACE_UNIX */
 
 #ifdef CONFIG_CTRL_IFACE_NAMED_PIPE
-	char buf[2048], *pos;
+	char buf[4096], *pos;
 	size_t len;
 	struct wpa_ctrl *ctrl;
 	int ret;
@@ -1606,7 +1698,7 @@ int main(int argc, char *argv[])
 #endif /* CONFIG_NATIVE_WINDOWS */
 
 	if (interactive || action_file) {
-		if (wpa_ctrl_attach(ctrl_conn) == 0) {
+		if (wpa_ctrl_attach(monitor_conn) == 0) {
 			wpa_cli_attached = 1;
 		} else {
 			printf("Warning: Failed to attach to "

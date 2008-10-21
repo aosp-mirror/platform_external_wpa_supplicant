@@ -486,7 +486,9 @@ TCHAR * wpa_strdup_tchar(const char *str);
 
 const char * wpa_ssid_txt(u8 *ssid, size_t ssid_len);
 
+#ifndef ANDROID
 typedef u32 __be32;
 typedef u64 __be64;
+#endif /* Dm: */
 
 #endif /* COMMON_H */

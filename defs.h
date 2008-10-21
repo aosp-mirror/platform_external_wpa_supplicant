@@ -127,6 +127,21 @@ typedef enum {
 	 * fully configured.
 	 */
 	WPA_COMPLETED
+#ifdef ANDROID
+	/**
+	 * WPA_IDLE - Eeplicit disconnect was performed
+	 *
+	 * This state is entered when a disconnect command is issued to the
+	 * supplicant. In this case, the supplicant not only disassociates
+	 * from the current network, but it also stops trying to associate
+	 * with any AP until a subsequent reconnect or reassociate command
+	 * is issued. This state was added to distinguish it from the
+	 * WPA_DISCONNECTED state, which is now reserved for disconnects
+	 * that were not explicitly requested by a client.
+	 * This state is reported to clients, but it is not internally stored.
+	 */
+	, WPA_IDLE
+#endif /* ANDROID */
 } wpa_states;
 
 #define MLME_SETPROTECTION_PROTECT_TYPE_NONE 0

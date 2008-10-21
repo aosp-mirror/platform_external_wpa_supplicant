@@ -16,6 +16,9 @@
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <grp.h>
+#ifdef ANDROID
+#include <cutils/sockets.h>
+#endif
 
 #include "common.h"
 #include "eloop.h"
@@ -271,6 +274,13 @@ wpa_supplicant_ctrl_iface_init(struct wpa_supplicant *wpa_s)
 	buf = os_strdup(wpa_s->conf->ctrl_interface);
 	if (buf == NULL)
 		goto fail;
+#ifdef ANDROID
+	os_snprintf(addr.sun_path, sizeof(addr.sun_path), "wpa_%s",
+			wpa_s->conf->ctrl_interface);
+	priv->sock = android_get_control_socket(addr.sun_path);
+	if (priv->sock >= 0)
+		goto havesock;
+#endif
 	if (os_strncmp(buf, "DIR=", 4) == 0) {
 		dir = buf + 4;
 		gid_str = os_strstr(dir, " GROUP=");
@@ -380,6 +390,7 @@ wpa_supplicant_ctrl_iface_init(struct wpa_supplicant *wpa_s)
 	}
 	os_free(fname);
 
+havesock:
 	eloop_register_read_sock(priv->sock, wpa_supplicant_ctrl_iface_receive,
 				 wpa_s, priv);
 	wpa_msg_register_cb(wpa_supplicant_ctrl_iface_msg_cb);
@@ -617,6 +628,11 @@ wpa_supplicant_global_ctrl_iface_init(struct wpa_global *global)
 	if (global->params.ctrl_interface == NULL)
 		return priv;
 
+#ifdef ANDROID
+	priv->sock = android_get_control_socket(global->params.ctrl_interface);
+	if (priv->sock >= 0)
+		goto havesock;
+#endif
 	wpa_printf(MSG_DEBUG, "Global control interface '%s'",
 		   global->params.ctrl_interface);
 
@@ -661,7 +677,7 @@ wpa_supplicant_global_ctrl_iface_init(struct wpa_global *global)
 			goto fail;
 		}
 	}
-
+havesock:
 	eloop_register_read_sock(priv->sock,
 				 wpa_supplicant_global_ctrl_iface_receive,
 				 global, NULL);

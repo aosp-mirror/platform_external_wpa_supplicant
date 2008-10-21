@@ -515,6 +515,7 @@ static void wpa_supplicant_event_scan_results(struct wpa_supplicant *wpa_s)
 	}
 
 	wpa_supplicant_dbus_notify_scan_results(wpa_s);
+    wpa_msg(wpa_s, MSG_INFO, WPA_EVENT_SCAN_RESULTS " Ready"); /* Dm: */
 
 	if (wpa_s->conf->ap_scan == 2 || wpa_s->disconnected)
 		return;

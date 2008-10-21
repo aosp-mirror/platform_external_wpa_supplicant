@@ -693,4 +693,12 @@ static inline int wpa_drv_mlme_remove_sta(struct wpa_supplicant *wpa_s,
 	return -1;
 }
 
+static inline int wpa_drv_driver_cmd(struct wpa_supplicant *wpa_s,
+					  char *cmd, char *buf, size_t buf_len)
+{
+	if (wpa_s->driver->driver_cmd)
+		return wpa_s->driver->driver_cmd(wpa_s->drv_priv, cmd, buf, buf_len);
+	return -1;
+}
+
 #endif /* WPA_SUPPLICANT_I_H */

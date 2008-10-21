@@ -752,6 +752,18 @@ struct wpa_driver_ops {
 	 * (management frame processing) to wpa_supplicant.
 	 */
 	 int (*mlme_remove_sta)(void *priv, const u8 *addr);
+
+    /**
+     * driver_cmd - execute driver-specific command
+     * @priv: private driver interface data from init() 
+     * @cmd: command to execute 
+     * @buf: return buffer 
+     * @buf_len: buffer length
+	 *
+	 * Returns: 0 on success, -1 on failure
+	 *
+	 */
+     int (*driver_cmd)(void *priv, char *cmd, char *buf, size_t buf_len);
 };
 
 #endif /* DRIVER_H */

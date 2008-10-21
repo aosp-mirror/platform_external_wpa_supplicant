@@ -796,13 +796,26 @@ const char * wpa_supplicant_state_txt(int state)
  */
 void wpa_supplicant_set_state(struct wpa_supplicant *wpa_s, wpa_states state)
 {
+#ifdef ANDROID
+        int network_id = -1;
+        if (wpa_s && wpa_s->current_ssid) {
+            network_id = wpa_s->current_ssid->id;
+        }
+	wpa_states reported_state = state;
+	if (state == WPA_DISCONNECTED && wpa_s->disconnected) {
+		reported_state = WPA_IDLE;
+	}
+#endif
 	wpa_printf(MSG_DEBUG, "State: %s -> %s",
 		   wpa_supplicant_state_txt(wpa_s->wpa_state),
 		   wpa_supplicant_state_txt(state));
 
 	wpa_supplicant_dbus_notify_state_change(wpa_s, state,
 						wpa_s->wpa_state);
-
+#ifdef ANDROID
+	wpa_msg(wpa_s, MSG_INFO, WPA_EVENT_STATE_CHANGE "id=%d state=%d",
+                network_id, reported_state); /* Dm: */
+#endif
 	if (state == WPA_COMPLETED && wpa_s->new_connection) {
 #if defined(CONFIG_CTRL_IFACE) || !defined(CONFIG_NO_STDOUT_DEBUG)
 		struct wpa_ssid *ssid = wpa_s->current_ssid;
@@ -2593,6 +2606,8 @@ void wpa_supplicant_deinit(struct wpa_global *global)
 	if (global == NULL)
 		return;
 
+	wpa_supplicant_terminate(0, global, NULL);
+	
 	while (global->ifaces)
 		wpa_supplicant_remove_iface(global, global->ifaces);
 

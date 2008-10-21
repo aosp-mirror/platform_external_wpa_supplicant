@@ -312,6 +312,61 @@ static int wpa_supplicant_ctrl_iface_bssid(struct wpa_supplicant *wpa_s,
 	return 0;
 }
 
+#ifdef ANDROID
+static int wpa_supplicant_ctrl_iface_blacklist(
+		struct wpa_supplicant *wpa_s, char *cmd, char *buf, size_t buflen)
+{
+	struct wpa_ssid *ssid;
+	u8 bssid[ETH_ALEN];
+	struct wpa_blacklist *e;
+	char *pos, *end;
+	int ret;
+
+	/* cmd: "BLACKLIST [<BSSID>]" */
+	if (*cmd == '\0') {
+		pos = buf;
+		end = buf + buflen;
+
+		e = wpa_s->blacklist;
+		while (e) {
+			ret = os_snprintf(pos, end-pos,
+					  "%02x:%02x:%02x:%02x:%02x:%02x\n",
+					  e->bssid[0],
+					  e->bssid[1],
+					  e->bssid[2],
+					  e->bssid[3],
+					  e->bssid[4],
+					  e->bssid[5]);
+			if (ret < 0 || ret >= end - pos)
+				return pos - buf;
+			pos += ret;
+			e = e->next;
+		}
+		return pos - buf;
+	}
+	wpa_printf(MSG_DEBUG, "CTRL_IFACE: bssid='%s'", cmd);
+
+	++cmd;
+	if (os_strncmp(cmd, "clear", 5) == 0) {
+		wpa_blacklist_clear(wpa_s);
+		return 0;
+	}
+
+	if (hwaddr_aton(cmd, bssid)) {
+		wpa_printf(MSG_DEBUG ,"CTRL_IFACE: invalid BSSID '%s'", cmd);
+		return -1;
+	}
+
+	/*
+	 * Add the BSSID twice, so its count will be 2, causing it to be
+	 * skipped when processing scan results.
+	 */
+	ret = wpa_blacklist_add(wpa_s, bssid);
+	if (ret != 0)
+		return ret;
+	return wpa_blacklist_add(wpa_s, bssid);
+}
+#endif
 
 static int wpa_supplicant_ctrl_iface_list_networks(
 	struct wpa_supplicant *wpa_s, char *buf, size_t buflen)
@@ -474,7 +529,7 @@ static char * wpa_supplicant_ie_txt(char *pos, char *end, const char *proto,
 static int wpa_supplicant_ctrl_iface_scan_results(
 	struct wpa_supplicant *wpa_s, char *buf, size_t buflen)
 {
-	char *pos, *end;
+	char *pos, *end, *retpos;
 	struct wpa_scan_result *res;
 	int i, ret;
 
@@ -483,7 +538,7 @@ static int wpa_supplicant_ctrl_iface_scan_results(
 		return 0;
 	if (wpa_s->scan_results == NULL)
 		return 0;
-
+	
 	pos = buf;
 	end = buf + buflen;
 	ret = os_snprintf(pos, end - pos, "bssid / frequency / signal level / "
@@ -493,11 +548,12 @@ static int wpa_supplicant_ctrl_iface_scan_results(
 	pos += ret;
 
 	for (i = 0; i < wpa_s->num_scan_results; i++) {
+		retpos = pos;
 		res = &wpa_s->scan_results[i];
 		ret = os_snprintf(pos, end - pos, MACSTR "\t%d\t%d\t",
 				  MAC2STR(res->bssid), res->freq, res->level);
 		if (ret < 0 || ret >= end - pos)
-			return pos - buf;
+			return retpos - buf;
 		pos += ret;
 		if (res->wpa_ie_len) {
 			pos = wpa_supplicant_ie_txt(pos, end, "WPA",
@@ -513,25 +569,31 @@ static int wpa_supplicant_ctrl_iface_scan_results(
 		    res->caps & IEEE80211_CAP_PRIVACY) {
 			ret = os_snprintf(pos, end - pos, "[WEP]");
 			if (ret < 0 || ret >= end - pos)
-				return pos - buf;
+				return retpos - buf;
 			pos += ret;
 		}
 		if (res->caps & IEEE80211_CAP_IBSS) {
 			ret = os_snprintf(pos, end - pos, "[IBSS]");
 			if (ret < 0 || ret >= end - pos)
-				return pos - buf;
+				return retpos - buf;
+			pos += ret;
+		}
+		if (!res->wpa_ie_len && !res->rsn_ie_len) {
+			ret = os_snprintf(pos, end - pos, "\t");
+			if (ret < 0 || ret >= end - pos)
+				return retpos - buf;
 			pos += ret;
 		}
 
 		ret = os_snprintf(pos, end - pos, "\t%s",
 				  wpa_ssid_txt(res->ssid, res->ssid_len));
 		if (ret < 0 || ret >= end - pos)
-			return pos - buf;
+			return retpos - buf;
 		pos += ret;
 
 		ret = os_snprintf(pos, end - pos, "\n");
 		if (ret < 0 || ret >= end - pos)
-			return pos - buf;
+			return retpos - buf;
 		pos += ret;
 	}
 
@@ -1063,12 +1125,23 @@ static int wpa_supplicant_ctrl_iface_ap_scan(
 	return 0;
 }
 
+static int wpa_supplicant_driver_cmd(struct wpa_supplicant *wpa_s, 
+                                     char *cmd, char *buf, size_t buflen)
+{
+    int ret;
+
+    ret = wpa_drv_driver_cmd(wpa_s, cmd, buf, buflen);
+    if( ret == 0 ) {
+        ret = sprintf(buf, "%s\n", "OK");
+    }
+    return( ret );
+}
 
 char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
 					 char *buf, size_t *resp_len)
 {
 	char *reply;
-	const int reply_size = 2048;
+	const int reply_size = 4096;
 	int ctrl_rsp = 0;
 	int reply_len;
 
@@ -1077,8 +1150,9 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
 		wpa_hexdump_ascii_key(MSG_DEBUG, "RX ctrl_iface",
 				      (const u8 *) buf, os_strlen(buf));
 	} else {
-		wpa_hexdump_ascii(MSG_DEBUG, "RX ctrl_iface",
-				  (const u8 *) buf, os_strlen(buf));
+        if (os_strcmp(buf, "PING") != 0)
+            wpa_hexdump_ascii(MSG_DEBUG, "RX ctrl_iface",
+                              (const u8 *) buf, os_strlen(buf));
 	}
 
 	reply = os_malloc(reply_size);
@@ -1149,6 +1223,20 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
 	} else if (os_strncmp(buf, "BSSID ", 6) == 0) {
 		if (wpa_supplicant_ctrl_iface_bssid(wpa_s, buf + 6))
 			reply_len = -1;
+#ifdef ANDROID
+	} else if (os_strncmp(buf, "BLACKLIST", 9) == 0) {
+		reply_len = wpa_supplicant_ctrl_iface_blacklist(
+				wpa_s, buf + 9, reply, reply_size);
+		if (os_strlen(buf) > 10 && reply_len == 0) {
+			struct wpa_blacklist *bl = wpa_s->blacklist;
+			if (os_strncmp(buf+10, "clear", 5) == 0 ||
+			    (bl != NULL && os_memcmp(bl->bssid, wpa_s->bssid, ETH_ALEN) == 0)) {
+				wpa_s->disconnected = 0;
+				wpa_s->reassociate = 1;
+				wpa_supplicant_req_scan(wpa_s, 0, 0);
+			}
+		}
+#endif
 	} else if (os_strcmp(buf, "LIST_NETWORKS") == 0) {
 		reply_len = wpa_supplicant_ctrl_iface_list_networks(
 			wpa_s, reply, reply_size);
@@ -1195,6 +1283,8 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
 	} else if (os_strcmp(buf, "INTERFACES") == 0) {
 		reply_len = wpa_supplicant_global_iface_interfaces(
 			wpa_s->global, reply, reply_size);
+    } else if (os_strncmp(buf, "DRIVER ", 7) == 0) {
+        reply_len = wpa_supplicant_driver_cmd(wpa_s, buf + 7, reply, reply_size);
 	} else {
 		os_memcpy(reply, "UNKNOWN COMMAND\n", 16);
 		reply_len = 16;
@@ -1332,11 +1422,12 @@ char * wpa_supplicant_global_ctrl_iface_process(struct wpa_global *global,
 						char *buf, size_t *resp_len)
 {
 	char *reply;
-	const int reply_size = 2048;
+	const int reply_size = 4096;
 	int reply_len;
 
-	wpa_hexdump_ascii(MSG_DEBUG, "RX global ctrl_iface",
-			  (const u8 *) buf, os_strlen(buf));
+    if (os_strcmp(buf, "PING") != 0)
+        wpa_hexdump_ascii(MSG_DEBUG, "RX global ctrl_iface",
+                          (const u8 *) buf, os_strlen(buf));
 
 	reply = os_malloc(reply_size);
 	if (reply == NULL) {
