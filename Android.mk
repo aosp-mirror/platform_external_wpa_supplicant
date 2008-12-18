@@ -1,22 +1,32 @@
+#
+# Copyright (C) 2008 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 LOCAL_PATH := $(call my-dir)
+
 WPA_BUILD_SUPPLICANT := false
-ifeq ($(HAVE_CUSTOM_WIFI_DRIVER_0),true)
-WPA_BUILD_SUPPLICANT := true
-CONFIG_DRIVER_CUSTOM=y
-endif
-ifeq ($(HAVE_CUSTOM_WIFI_DRIVER_1),true)
-WPA_BUILD_SUPPLICANT := true
-CONFIG_DRIVER_CUSTOM=y
-endif
-ifeq ($(HAVE_CUSTOM_WIFI_DRIVER_2),true)
-WPA_BUILD_SUPPLICANT := true
-CONFIG_DRIVER_CUSTOM=y
+ifneq ($(TARGET_SIMULATOR),true)
+  ifdef BOARD_WLAN_TI_STA_DK_ROOT
+    WPA_BUILD_SUPPLICANT := true
+    CONFIG_DRIVER_CUSTOM = y
+  endif
 endif
 
 include $(LOCAL_PATH)/.config
 
 # To force sizeof(enum) = 4
-ifneq ($(TARGET_SIMULATOR),true)
+ifeq ($(TARGET_ARCH),arm)
 L_CFLAGS += -mabi=aapcs-linux
 endif
 
@@ -634,7 +644,6 @@ EXTRALIBS += WbemUuid.Lib
 endif
 endif
 
-ifneq ($(TARGET_SIMULATOR),true)
 ifeq ($(WPA_BUILD_SUPPLICANT),true)
 
 ########################
@@ -653,7 +662,7 @@ LOCAL_MODULE := wpa_supplicant
 ifdef CONFIG_DRIVER_CUSTOM
 LOCAL_STATIC_LIBRARIES := libCustomWifi libWifiApi
 endif
-LOCAL_SHARED_LIBRARIES := libc libcrypto libssl
+LOCAL_SHARED_LIBRARIES := libc libcutils libcrypto libssl
 LOCAL_CFLAGS := $(L_CFLAGS)
 LOCAL_SRC_FILES := $(OBJS)
 LOCAL_C_INCLUDES := $(INCLUDES)
@@ -687,8 +696,6 @@ include $(BUILD_PREBUILT)
 ########################
 
 endif # ifeq ($(WPA_BUILD_SUPPLICANT),true)
-
-endif # ifneq ($(TARGET_SIMULATOR),true)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE = libwpa_client
