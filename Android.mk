@@ -17,9 +17,9 @@ LOCAL_PATH := $(call my-dir)
 
 WPA_BUILD_SUPPLICANT := false
 ifneq ($(TARGET_SIMULATOR),true)
-  ifdef BOARD_WLAN_TI_STA_DK_ROOT
+  ifneq ($(BOARD_WPA_SUPPLICANT_DRIVER),)
     WPA_BUILD_SUPPLICANT := true
-    CONFIG_DRIVER_CUSTOM = y
+    CONFIG_DRIVER_$(BOARD_WPA_SUPPLICANT_DRIVER) = y
   endif
 endif
 
