@@ -562,7 +562,11 @@ static void wpa_supplicant_event_scan_results(struct wpa_supplicant *wpa_s)
 		rsn_preauth_scan_results(wpa_s->wpa, results, num);
 	} else {
 		wpa_printf(MSG_DEBUG, "No suitable AP found.");
+#ifdef ANDROID
+		timeout = wpa_s->scan_interval;
+#else
 		timeout = 5;
+#endif
 		goto req_scan;
 	}
 

@@ -17,9 +17,9 @@ LOCAL_PATH := $(call my-dir)
 
 WPA_BUILD_SUPPLICANT := false
 ifneq ($(TARGET_SIMULATOR),true)
-  ifdef BOARD_WLAN_TI_STA_DK_ROOT
+  ifneq ($(BOARD_WPA_SUPPLICANT_DRIVER),)
     WPA_BUILD_SUPPLICANT := true
-    CONFIG_DRIVER_CUSTOM = y
+    CONFIG_DRIVER_$(BOARD_WPA_SUPPLICANT_DRIVER) = y
   endif
 endif
 
@@ -687,7 +687,7 @@ local_target_dir := $(TARGET_OUT)/etc/wifi
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := wpa_supplicant.conf
-LOCAL_MODULE_TAGS := user development
+LOCAL_MODULE_TAGS := user
 LOCAL_MODULE_CLASS := ETC
 LOCAL_MODULE_PATH := $(local_target_dir)
 LOCAL_SRC_FILES := $(LOCAL_MODULE)
