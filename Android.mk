@@ -650,6 +650,7 @@ ifeq ($(WPA_BUILD_SUPPLICANT),true)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := wpa_cli
+LOCAL_MODULE_TAGS := debug
 LOCAL_SHARED_LIBRARIES := libc libcutils
 LOCAL_CFLAGS := $(L_CFLAGS)
 LOCAL_SRC_FILES := $(OBJS_c)
