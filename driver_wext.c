@@ -21,6 +21,7 @@
 #include "includes.h"
 #include <sys/ioctl.h>
 #include <net/if_arp.h>
+#include <net/if.h>
 
 #include "wireless_copy.h"
 #include "common.h"

@@ -35,7 +35,7 @@ L_CFLAGS += -DWPA_IGNORE_CONFIG_ERRORS
 
 INCLUDES = external/openssl/include
   
-OBJS = config.c common.c md5.c md4.c rc4.c sha1.c des.c if_index.c
+OBJS = config.c common.c md5.c md4.c rc4.c sha1.c des.c
 OBJS_p = wpa_passphrase.c sha1.c md5.c md4.c common.c des.c
 OBJS_c = wpa_cli.c wpa_ctrl.c
 
