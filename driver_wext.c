@@ -1015,7 +1015,9 @@ static void wpa_driver_wext_finish_drv_init(struct wpa_driver_wext_data *drv)
 	    wpa_driver_wext_set_ifflags(drv, flags | IFF_UP) != 0) {
 		printf("Could not set interface '%s' UP\n", drv->ifname);
 	}
-
+#ifdef ANDROID
+	os_sleep(0, 200000);
+#endif
 	wpa_driver_wext_get_range(drv);
 
 	drv->ifindex = if_nametoindex(drv->ifname);
