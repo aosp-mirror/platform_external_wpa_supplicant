@@ -1002,6 +1002,13 @@ static void wpa_driver_wext_finish_drv_init(struct wpa_driver_wext_data *drv)
 {
 	int flags;
 
+	if (wpa_driver_wext_get_ifflags(drv, &flags) != 0 ||
+	    wpa_driver_wext_set_ifflags(drv, flags | IFF_UP) != 0) {
+		printf("Could not set interface '%s' UP\n", drv->ifname);
+	}
+#ifdef ANDROID
+	os_sleep(0, 200000);
+#endif
 	/*
 	 * Make sure that the driver does not have any obsolete PMKID entries.
 	 */
@@ -1011,13 +1018,6 @@ static void wpa_driver_wext_finish_drv_init(struct wpa_driver_wext_data *drv)
 		printf("Could not configure driver to use managed mode\n");
 	}
 
-	if (wpa_driver_wext_get_ifflags(drv, &flags) != 0 ||
-	    wpa_driver_wext_set_ifflags(drv, flags | IFF_UP) != 0) {
-		printf("Could not set interface '%s' UP\n", drv->ifname);
-	}
-#ifdef ANDROID
-	os_sleep(0, 200000);
-#endif
 	wpa_driver_wext_get_range(drv);
 
 	drv->ifindex = if_nametoindex(drv->ifname);
