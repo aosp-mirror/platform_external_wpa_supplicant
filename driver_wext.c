@@ -32,6 +32,7 @@
 #include "priv_netlink.h"
 #include "driver_wext.h"
 #include "wpa.h"
+#include "wpa_ctrl.h"
 
 #ifdef CONFIG_CLIENT_MLME
 #include <netpacket/packet.h>
@@ -2476,6 +2477,46 @@ int wpa_driver_wext_get_version(struct wpa_driver_wext_data *drv)
 	return drv->we_version_compiled;
 }
 
+#ifdef ANDROID
+int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len )
+{
+	struct wpa_driver_wext_data *drv = priv;
+	struct iwreq iwr;
+	int ret;
+
+	wpa_printf(MSG_DEBUG, "%s %s len = %d", __func__, cmd, buf_len);
+
+	os_memset(&iwr, 0, sizeof(iwr));
+	os_strncpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
+	os_memcpy(buf, cmd, strlen(cmd) + 1);
+	iwr.u.data.pointer = buf;
+	iwr.u.data.length = buf_len;
+
+	if ((ret = ioctl(drv->ioctl_sock, SIOCSIWPRIV, &iwr)) < 0) {
+		perror("ioctl[SIOCSIWPRIV]");
+	}
+
+	if (ret < 0)
+		wpa_printf(MSG_ERROR, "%s failed", __func__);
+	else {
+		ret = 0;
+		if ((os_strcasecmp(cmd, "RSSI") == 0) ||
+		    (os_strcasecmp(cmd, "LINKSPEED") == 0) ||
+		    (os_strcasecmp(cmd, "MACADDR") == 0)) {
+			ret = strlen(buf);
+		}
+		else if (os_strcasecmp(cmd, "START") == 0) {
+			os_sleep(0, 200000);
+			wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STARTED");
+		}
+		else if (os_strcasecmp(cmd, "STOP") == 0) {
+			wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STOPPED");
+		}
+		wpa_printf(MSG_DEBUG, "%s %s len = %d, %d", __func__, buf, ret, strlen(buf));
+	}
+	return ret;
+}
+#endif
 
 const struct wpa_driver_ops wpa_driver_wext_ops = {
 	.name = "wext",
@@ -2509,4 +2550,7 @@ const struct wpa_driver_ops wpa_driver_wext_ops = {
 	.mlme_add_sta = wpa_driver_wext_mlme_add_sta,
 	.mlme_remove_sta = wpa_driver_wext_mlme_remove_sta,
 #endif /* CONFIG_CLIENT_MLME */
+#ifdef ANDROID
+	.driver_cmd = wpa_driver_priv_driver_cmd,
+#endif
 };
