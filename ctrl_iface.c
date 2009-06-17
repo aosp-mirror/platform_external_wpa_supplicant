@@ -670,7 +670,11 @@ static int wpa_supplicant_ctrl_iface_enable_network(
 		 * Try to reassociate since there is no current configuration
 		 * and a new network was made available. */
 		wpa_s->reassociate = 1;
+#ifdef ANDROID
+		wpa_supplicant_req_scan(wpa_s, 2, 0);
+#else
 		wpa_supplicant_req_scan(wpa_s, 0, 0);
+#endif
 	}
 	ssid->disabled = 0;
 

@@ -954,7 +954,11 @@ int wpa_supplicant_reload_configuration(struct wpa_supplicant *wpa_s)
 
 	wpa_supplicant_clear_status(wpa_s);
 	wpa_s->reassociate = 1;
+#ifdef ANDROID
+	wpa_supplicant_req_scan(wpa_s, 2, 0);
+#else
 	wpa_supplicant_req_scan(wpa_s, 0, 0);
+#endif
 	wpa_msg(wpa_s, MSG_DEBUG, "Reconfiguration completed");
 	return 0;
 }
