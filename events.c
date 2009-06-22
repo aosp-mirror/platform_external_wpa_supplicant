@@ -505,6 +505,7 @@ static void wpa_supplicant_event_scan_results(struct wpa_supplicant *wpa_s)
 	struct wpa_ssid *ssid = NULL;
 	struct wpa_scan_result *results;
 
+	wpa_s->scan_ongoing = 0;
 	if (wpa_supplicant_get_scan_results(wpa_s) < 0) {
 		if (wpa_s->conf->ap_scan == 2)
 			return;
@@ -515,7 +516,7 @@ static void wpa_supplicant_event_scan_results(struct wpa_supplicant *wpa_s)
 	}
 
 	wpa_supplicant_dbus_notify_scan_results(wpa_s);
-    wpa_msg(wpa_s, MSG_INFO, WPA_EVENT_SCAN_RESULTS " Ready"); /* Dm: */
+	wpa_msg(wpa_s, MSG_INFO, WPA_EVENT_SCAN_RESULTS " Ready");
 
 	if (wpa_s->conf->ap_scan == 2 || wpa_s->disconnected)
 		return;

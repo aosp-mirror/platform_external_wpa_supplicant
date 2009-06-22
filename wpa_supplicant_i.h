@@ -342,6 +342,7 @@ struct wpa_supplicant {
 
 	struct wpa_client_mlme mlme;
 	int use_client_mlme;
+	int scan_ongoing;   /* scan ongoing or not */
 #ifdef ANDROID
 	int scan_interval;  /* time between scans when no APs available */
 #endif
