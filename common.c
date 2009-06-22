@@ -16,6 +16,10 @@
 
 #include "common.h"
 
+#ifdef ANDROID
+#include <cutils/log.h>
+#endif
+
 
 #ifdef CONFIG_DEBUG_FILE
 static FILE *out_file = NULL;
@@ -191,6 +195,20 @@ void wpa_printf(int level, char *fmt, ...)
 #ifdef CONFIG_DEBUG_FILE
 		}
 #endif /* CONFIG_DEBUG_FILE */
+#ifdef ANDROID
+        if (level == MSG_DEBUG)
+            level = ANDROID_LOG_DEBUG;
+        else if (level == MSG_INFO)
+            level = ANDROID_LOG_INFO;
+        else if (level == MSG_WARNING)
+            level = ANDROID_LOG_WARN;
+        else if (level == MSG_ERROR)
+            level = ANDROID_LOG_ERROR;
+        else
+            level = ANDROID_LOG_DEBUG;
+
+        LOG_PRI_VA(level, "wpa_supplicant", fmt, ap);
+#endif
 	}
 	va_end(ap);
 }
