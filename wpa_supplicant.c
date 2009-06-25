@@ -1391,6 +1391,7 @@ void wpa_supplicant_associate(struct wpa_supplicant *wpa_s,
 			wpa_ssid_txt(bss->ssid, bss->ssid_len), bss->freq);
 		os_memset(wpa_s->bssid, 0, ETH_ALEN);
 		os_memcpy(wpa_s->pending_bssid, bss->bssid, ETH_ALEN);
+		wpa_s->link_speed = bss->maxrate;
 	} else {
 		wpa_msg(wpa_s, MSG_INFO, "Trying to associate with SSID '%s'",
 			wpa_ssid_txt(ssid->ssid, ssid->ssid_len));
