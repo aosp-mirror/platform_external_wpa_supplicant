@@ -33,7 +33,7 @@ endif
 # To ignore possible wrong network configurations
 L_CFLAGS += -DWPA_IGNORE_CONFIG_ERRORS
 
-INCLUDES = external/openssl/include
+INCLUDES = external/openssl/include frameworks/base/cmds/keystore
   
 OBJS = config.c common.c md5.c md4.c rc4.c sha1.c des.c
 OBJS_p = wpa_passphrase.c sha1.c md5.c md4.c common.c des.c
