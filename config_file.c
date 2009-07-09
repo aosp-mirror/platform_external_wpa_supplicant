@@ -23,6 +23,8 @@
 #include "base64.h"
 #include "eap_methods.h"
 
+#include <sys/stat.h>
+
 
 /**
  * wpa_config_get_line - Read the next configuration file line
@@ -258,6 +260,10 @@ struct wpa_config * wpa_config_read(const char *name)
 		os_free(config);
 		return NULL;
 	}
+	/* When creating the config file, give group read/write access
+	 * to allow backup and restoring the file.
+	 */
+	chmod(name, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
 
 	while (wpa_config_get_line(buf, sizeof(buf), f, &line, &pos)) {
 		if (os_strcmp(pos, "network={") == 0) {
