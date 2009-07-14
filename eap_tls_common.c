@@ -28,25 +28,26 @@
 #include <openssl/x509v3.h>
 #include <keystore_get.h>
 
-#define PEM_CERT_HEADER "-----BEGIN CERTIFICATE-----"
+#define PEM_CERT_KEYWORD "CERTIFICATE"
+#define PEM_PRIVATEKEY_KEYWORD "PRIVATE KEY"
 
-struct cache_blobs {
-	struct cache_blobs *next;
+struct temporal_blobs {
+	struct temporal_blobs *next;
 	struct wpa_config_blob *blob;
 };
 
-static struct cache_blobs *ks_blobs = NULL;
+static struct temporal_blobs *ks_blobs = NULL;
 
 /**
  * The blob data can not be inserted into config->blobs structure, since the 
  * protected cert/key may be rewritten to config file. We have to maintain the
  * keystore-only blobs.
  */
-static int add_cache_blob(struct wpa_config_blob *blob)
+static int add_temporal_blob(struct wpa_config_blob *blob)
 {
-	struct cache_blobs *p;
+	struct temporal_blobs *p;
 
-	p = (struct cache_blobs*) malloc(sizeof(struct cache_blobs));
+	p = (struct temporal_blobs*) malloc(sizeof(struct temporal_blobs));
 	if (p == NULL) {
 		return -1;
 	}
@@ -56,18 +57,46 @@ static int add_cache_blob(struct wpa_config_blob *blob)
 	return 0;
 }
 
-static struct wpa_config_blob *get_cache_blob(const char *name)
+static void free_temporal_blobs()
 {
-	struct cache_blobs *p = ks_blobs;
+	struct temporal_blobs *p = ks_blobs;
 
-	if (name != NULL) {
-		while (p != NULL) {
-			if (os_strcmp(p->blob->name, name) == 0)
-				return p->blob;
-			p = p->next;
-		}
+	while (p != NULL) {
+		struct temporal_blobs *q = p;
+		p = p->next;
+		if (q->blob) free(q->blob);
+		free(q);
 	}
-	return NULL;
+	ks_blobs = NULL;
+}
+
+typedef enum {
+	PEM_CERTIFICATE,
+	PEM_PRIVATE_KEY,
+	DER_FORMAT,
+	UNKNOWN_CERT_TYPE
+} CERT_TYPE;
+
+/**
+ * Tell the encoding format and type of the certificate/key by examining if
+ * there is "CERTIFICATE" or "PRIVATE KEY" in the blob. If not, at least we
+ * can test if the first byte is '0'.
+ */
+static CERT_TYPE get_blob_type(struct wpa_config_blob *blob)
+{
+	CERT_TYPE type = UNKNOWN_CERT_TYPE;
+	unsigned char p = blob->data[blob->len - 1];
+
+	blob->data[blob->len - 1] = 0;
+	if (strstr(blob->data, PEM_CERT_KEYWORD) != NULL) {
+		type = PEM_CERTIFICATE;
+	} else if (strstr(blob->data, PEM_PRIVATEKEY_KEYWORD) != NULL) {
+		type = PEM_PRIVATE_KEY;
+	} else if (blob->data[0] == '0') {
+		type = DER_FORMAT;
+	}
+	blob->data[blob->len - 1] = p;
+	return type;
 }
 
 /**
@@ -82,15 +111,21 @@ static void convert_PEM_to_DER(struct wpa_config_blob *blob)
 	BIO *bp = NULL;
 	unsigned char *buf = NULL;
 	int len = 0;
+	CERT_TYPE type;
 
-	if (blob->len < sizeof(PEM_CERT_HEADER) || blob->data[0] != '-')
+	if (blob->len < sizeof(PEM_CERT_KEYWORD)) {
 		return;
+	}
+
+	if (((type = get_blob_type(blob)) != PEM_CERTIFICATE) &&
+		(type != PEM_PRIVATE_KEY)) {
+		return;
+	}
 
 	bp = BIO_new(BIO_s_mem());
 	if (!bp) goto err;
 	if (!BIO_write(bp, blob->data, blob->len)) goto err;
-	if (memcmp((char*)blob->data, PEM_CERT_HEADER,
-		strlen(PEM_CERT_HEADER)) == 0) {
+	if (type == PEM_CERTIFICATE) {
 		if ((cert = PEM_read_bio_X509(bp, NULL, NULL, NULL)) != NULL) {
 			len = i2d_X509(cert, &buf);
 		}
@@ -117,9 +152,6 @@ struct wpa_config_blob *get_blob_from_keystore(const char *name)
 	char *buf = keystore_get((char*)name, &len);
 	struct wpa_config_blob *blob = NULL;
 
-	if ((blob = get_cache_blob(name)) != NULL) {
-		return blob;
-	}
 	if (buf) {
 		if ((blob = os_zalloc(sizeof(*blob))) != NULL) {
 			blob->name = os_strdup(name);
@@ -131,7 +163,7 @@ struct wpa_config_blob *get_blob_from_keystore(const char *name)
 	}
 	if (blob) {
 		convert_PEM_to_DER(blob);
-		add_cache_blob(blob);
+		add_temporal_blob(blob);
 	}
 	return blob;
 }
@@ -314,6 +346,9 @@ int eap_tls_ssl_init(struct eap_sm *sm, struct eap_ssl_data *data,
 	ret = 0;
 
 done:
+#ifdef ANDROID
+	free_temporal_blobs();
+#endif
 	return ret;
 }
 
