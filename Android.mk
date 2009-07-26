@@ -33,7 +33,7 @@ endif
 # To ignore possible wrong network configurations
 L_CFLAGS += -DWPA_IGNORE_CONFIG_ERRORS
 
-INCLUDES = external/openssl/include
+INCLUDES = external/openssl/include frameworks/base/cmds/keystore
   
 OBJS = config.c common.c md5.c md4.c rc4.c sha1.c des.c if_index.c
 OBJS_p = wpa_passphrase.c sha1.c md5.c md4.c common.c des.c
@@ -683,17 +683,17 @@ include $(BUILD_EXECUTABLE)
 #include $(BUILD_EXECUTABLE)
 #
 ########################
-
-local_target_dir := $(TARGET_OUT)/etc/wifi
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := wpa_supplicant.conf
-LOCAL_MODULE_TAGS := user
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(local_target_dir)
-LOCAL_SRC_FILES := $(LOCAL_MODULE)
-include $(BUILD_PREBUILT)
-
+#
+#local_target_dir := $(TARGET_OUT)/etc/wifi
+#
+#include $(CLEAR_VARS)
+#LOCAL_MODULE := wpa_supplicant.conf
+#LOCAL_MODULE_TAGS := user
+#LOCAL_MODULE_CLASS := ETC
+#LOCAL_MODULE_PATH := $(local_target_dir)
+#LOCAL_SRC_FILES := $(LOCAL_MODULE)
+#include $(BUILD_PREBUILT)
+#
 ########################
 
 endif # ifeq ($(WPA_BUILD_SUPPLICANT),true)

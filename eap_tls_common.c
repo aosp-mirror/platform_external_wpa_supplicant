@@ -23,6 +23,119 @@
 #include "tls.h"
 #include "config.h"
 
+#ifdef ANDROID
+#include <openssl/pem.h>
+#include <openssl/x509v3.h>
+#include <keystore_get.h>
+
+#define PEM_CERT_HEADER "-----BEGIN CERTIFICATE-----"
+
+struct cache_blobs {
+	struct cache_blobs *next;
+	struct wpa_config_blob *blob;
+};
+
+static struct cache_blobs *ks_blobs = NULL;
+
+/**
+ * The blob data can not be inserted into config->blobs structure, since the 
+ * protected cert/key may be rewritten to config file. We have to maintain the
+ * keystore-only blobs.
+ */
+static int add_cache_blob(struct wpa_config_blob *blob)
+{
+	struct cache_blobs *p;
+
+	p = (struct cache_blobs*) malloc(sizeof(struct cache_blobs));
+	if (p == NULL) {
+		return -1;
+	}
+	p->next = ks_blobs;
+	p->blob = blob;
+	ks_blobs = p;
+	return 0;
+}
+
+static struct wpa_config_blob *get_cache_blob(const char *name)
+{
+	struct cache_blobs *p = ks_blobs;
+
+	if (name != NULL) {
+		while (p != NULL) {
+			if (os_strcmp(p->blob->name, name) == 0)
+				return p->blob;
+			p = p->next;
+		}
+	}
+	return NULL;
+}
+
+/**
+ * convert_PEM_to_DER() provides the converion from PEM format to DER one, since
+ * original certificate handling does not accept the PEM format for blob data.
+ * Therefore, we need to convert the data to DER format if it is PEM-format.
+ */
+static void convert_PEM_to_DER(struct wpa_config_blob *blob)
+{
+	X509 *cert = NULL;
+	EVP_PKEY *pkey = NULL;
+	BIO *bp = NULL;
+	unsigned char *buf = NULL;
+	int len = 0;
+
+	if (blob->len < sizeof(PEM_CERT_HEADER) || blob->data[0] != '-')
+		return;
+
+	bp = BIO_new(BIO_s_mem());
+	if (!bp) goto err;
+	if (!BIO_write(bp, blob->data, blob->len)) goto err;
+	if (memcmp((char*)blob->data, PEM_CERT_HEADER,
+		strlen(PEM_CERT_HEADER)) == 0) {
+		if ((cert = PEM_read_bio_X509(bp, NULL, NULL, NULL)) != NULL) {
+			len = i2d_X509(cert, &buf);
+		}
+	} else {
+		if ((pkey = PEM_read_bio_PrivateKey(bp, NULL, NULL, NULL)) != NULL) {
+			len = i2d_PrivateKey(pkey, &buf);
+		}
+	}
+
+err:
+	if (bp) BIO_free(bp);
+	if (cert) X509_free(cert);
+	if (pkey) EVP_PKEY_free(pkey);
+	if (buf) {
+		free(blob->data);
+		blob->data = buf;
+		blob->len = len;
+	}
+}
+
+struct wpa_config_blob *get_blob_from_keystore(const char *name)
+{
+	int len;
+	char *buf = keystore_get((char*)name, &len);
+	struct wpa_config_blob *blob = NULL;
+
+	if ((blob = get_cache_blob(name)) != NULL) {
+		return blob;
+	}
+	if (buf) {
+		if ((blob = os_zalloc(sizeof(*blob))) != NULL) {
+			blob->name = os_strdup(name);
+			blob->data = (unsigned char*)buf;
+			blob->len = len;
+		} else {
+			free(buf);
+		}
+	}
+	if (blob) {
+		convert_PEM_to_DER(blob);
+		add_cache_blob(blob);
+	}
+	return blob;
+}
+#endif
 
 static int eap_tls_check_blob(struct eap_sm *sm, const char **name,
 			      const u8 **data, size_t *data_len)
@@ -33,12 +146,16 @@ static int eap_tls_check_blob(struct eap_sm *sm, const char **name,
 		return 0;
 
 	blob = eap_get_config_blob(sm, *name + 7);
+#ifdef ANDROID
+	if(blob == NULL) {
+		blob = get_blob_from_keystore(*name + 7);
+	}
+#endif
 	if (blob == NULL) {
 		wpa_printf(MSG_ERROR, "%s: Named configuration blob '%s' not "
 			   "found", __func__, *name + 7);
 		return -1;
 	}
-
 	*name = NULL;
 	*data = blob->data;
 	*data_len = blob->len;

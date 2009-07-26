@@ -501,7 +501,7 @@ int wpa_ctrl_pending(struct wpa_ctrl *ctrl)
 
 int wpa_ctrl_get_fd(struct wpa_ctrl *ctrl)
 {
-	return -1;
+        return ctrl->pipe;
 }
 
 #endif /* CONFIG_CTRL_IFACE_NAMED_PIPE */
