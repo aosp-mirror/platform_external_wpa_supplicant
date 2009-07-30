@@ -33,6 +33,8 @@
 #include "driver_wext.h"
 #include "wpa.h"
 #include "wpa_ctrl.h"
+#include "wpa_supplicant_i.h"
+#include "config_ssid.h"
 
 #ifdef CONFIG_CLIENT_MLME
 #include <netpacket/packet.h>
@@ -403,6 +405,12 @@ wpa_driver_wext_event_wireless_custom(void *ctx, char *custom)
 		}
 		wpa_supplicant_event(ctx, EVENT_STKSTART, &data);
 #endif /* CONFIG_PEERKEY */
+#ifdef ANDROID
+	} else if (os_strncmp(custom, "STOP", 4) == 0) {
+		wpa_msg(ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STOPPED");
+	} else if (os_strncmp(custom, "START", 5) == 0) {
+		wpa_msg(ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STARTED");
+#endif /* ANDROID */
 	}
 }
 
@@ -2481,10 +2489,23 @@ int wpa_driver_wext_get_version(struct wpa_driver_wext_data *drv)
 int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len )
 {
 	struct wpa_driver_wext_data *drv = priv;
+	struct wpa_supplicant *wpa_s = (struct wpa_supplicant *)(drv->ctx);
 	struct iwreq iwr;
-	int ret;
+	int ret = 0;
 
 	wpa_printf(MSG_DEBUG, "%s %s len = %d", __func__, cmd, buf_len);
+
+	if (os_strcasecmp(cmd, "RSSI-APPROX") == 0) {
+		if (wpa_s->current_ssid) {
+			wpa_printf(MSG_DEBUG, "approx: %s\n", wpa_s->current_ssid->ssid);
+			ret = wpa_s->current_ssid->ssid_len;
+			os_memcpy(buf, wpa_s->current_ssid->ssid, ret);
+			ret += snprintf(&buf[ret], buf_len-ret, " rssi %d\n", wpa_s->rssi);
+		}
+		else
+			ret = -1;
+		return ret;
+	}
 
 	os_memset(&iwr, 0, sizeof(iwr));
 	os_strncpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
@@ -2505,13 +2526,13 @@ int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len
 		    (os_strcasecmp(cmd, "MACADDR") == 0)) {
 			ret = strlen(buf);
 		}
-		else if (os_strcasecmp(cmd, "START") == 0) {
+/*		else if (os_strcasecmp(cmd, "START") == 0) {
 			os_sleep(0, 200000);
 			wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STARTED");
 		}
 		else if (os_strcasecmp(cmd, "STOP") == 0) {
 			wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STOPPED");
-		}
+		}*/
 		wpa_printf(MSG_DEBUG, "%s %s len = %d, %d", __func__, buf, ret, strlen(buf));
 	}
 	return ret;
