@@ -661,9 +661,9 @@ static void wpa_supplicant_event_associnfo(struct wpa_supplicant *wpa_s,
 		p += len;
 	}
 
-	if (!wpa_found && data->assoc_info.beacon_ies)
+	if (!wpa_found)
 		wpa_sm_set_ap_wpa_ie(wpa_s->wpa, NULL, 0);
-	if (!rsn_found && data->assoc_info.beacon_ies)
+	if (!rsn_found)
 		wpa_sm_set_ap_rsn_ie(wpa_s->wpa, NULL, 0);
 }
 
