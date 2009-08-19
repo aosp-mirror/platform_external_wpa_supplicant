@@ -13,6 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+ifndef WPA_SUPPLICANT_VERSION
+WPA_SUPPLICANT_VERSION := VER_0_5_X
+endif
+
+ifeq ($(WPA_SUPPLICANT_VERSION),VER_0_5_X)
+
 LOCAL_PATH := $(call my-dir)
 
 WPA_BUILD_SUPPLICANT := false
@@ -710,3 +716,5 @@ LOCAL_SHARED_LIBRARIES := libcutils
 LOCAL_COPY_HEADERS_TO := libwpa_client
 LOCAL_COPY_HEADERS := wpa_ctrl.h
 include $(BUILD_SHARED_LIBRARY)
+
+endif # VER_0_5_X
