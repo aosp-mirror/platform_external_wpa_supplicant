@@ -1016,7 +1016,7 @@ static void wpa_driver_wext_finish_drv_init(struct wpa_driver_wext_data *drv)
 		printf("Could not set interface '%s' UP\n", drv->ifname);
 	}
 #ifdef ANDROID
-	os_sleep(0, 200000);
+	os_sleep(0, WPA_DRIVER_WEXT_WAIT_US);
 #endif
 	/*
 	 * Make sure that the driver does not have any obsolete PMKID entries.
@@ -1238,7 +1238,13 @@ int wpa_driver_wext_get_scan_results(void *priv,
 	size_t len, clen, res_buf_len;
 
 	os_memset(results, 0, max_size * sizeof(struct wpa_scan_result));
-
+#ifdef ANDROID
+	/* To make sure correctly parse scan results which is impacted by wext
+	 * version, first check range->we_version, if it is default value (0),
+	 * update again here */
+	if (drv->we_version_compiled == 0)
+		wpa_driver_wext_get_range(drv);
+#endif
 	res_buf_len = IW_SCAN_MAX_DATA;
 	for (;;) {
 		res_buf = os_malloc(res_buf_len);
@@ -2527,7 +2533,7 @@ int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len
 			ret = strlen(buf);
 		}
 /*		else if (os_strcasecmp(cmd, "START") == 0) {
-			os_sleep(0, 200000);
+			os_sleep(0, WPA_DRIVER_WEXT_WAIT_US);
 			wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STARTED");
 		}
 		else if (os_strcasecmp(cmd, "STOP") == 0) {
