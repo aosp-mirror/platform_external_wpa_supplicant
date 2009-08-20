@@ -616,8 +616,11 @@ const char * wpa_ssid_txt(u8 *ssid, size_t ssid_len)
 	os_memcpy(ssid_txt, ssid, ssid_len);
 	ssid_txt[ssid_len] = '\0';
 	for (pos = ssid_txt; *pos != '\0'; pos++) {
+#ifndef WPA_UNICODE_SSID
+		/* Don't do this, since it prevents us from using APs with non-ASCII SSIDs */
 		if ((u8) *pos < 32 || (u8) *pos >= 127)
 			*pos = '_';
+#endif
 	}
 	return ssid_txt;
 }
