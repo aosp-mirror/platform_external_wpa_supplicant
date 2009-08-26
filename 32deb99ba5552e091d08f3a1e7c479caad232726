@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAin///9E\u003d",
+        "filename": "Android.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1000414
+      },
+      "writtenOn": "2009-08-26T16:49:34Z",
+      "side": 1,
+      "message": "Can we do something like:\n# Remove cryptographic acceleration feature\nL_CFLAGS +\u003d -DOPENSSL_NO_ENGINE\n\nelse comment may mislead.",
+      "revId": "32deb99ba5552e091d08f3a1e7c479caad232726",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889",
+      "unresolved": false
+    }
+  ]
+}
