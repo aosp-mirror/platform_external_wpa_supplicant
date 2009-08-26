@@ -31,7 +31,7 @@ L_CFLAGS += -mabi=aapcs-linux
 endif
 
 # To ignore possible wrong network configurations
-L_CFLAGS += -DWPA_IGNORE_CONFIG_ERRORS
+L_CFLAGS += -DWPA_IGNORE_CONFIG_ERRORS -DOPENSSL_NO_ENGINE
 
 INCLUDES = external/openssl/include frameworks/base/cmds/keystore
   
