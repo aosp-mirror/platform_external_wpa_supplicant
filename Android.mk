@@ -36,6 +36,9 @@ L_CFLAGS += -DWPA_IGNORE_CONFIG_ERRORS
 # To allow non-ASCII characters in SSID
 L_CFLAGS += -DWPA_UNICODE_SSID
 
+# OpenSSL is configured without engines on Android
+L_CFLAGS += -DOPENSSL_NO_ENGINE
+
 INCLUDES = external/openssl/include frameworks/base/cmds/keystore
   
 OBJS = config.c common.c md5.c md4.c rc4.c sha1.c des.c
