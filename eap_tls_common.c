@@ -162,7 +162,11 @@ struct wpa_config_blob *get_blob_from_keystore(const char *name)
 		}
 	}
 	if (blob) {
-		convert_PEM_to_DER(blob);
+		// We have to use PEM format here and modify the ca_cert
+		// handling to support cert. chain for CA certificates.
+		// Since the original code can not support the CA chain
+		// from blob data.
+		if (strstr(name, "CACERT") == NULL) convert_PEM_to_DER(blob);
 		add_temporal_blob(blob);
 	}
 	return blob;
