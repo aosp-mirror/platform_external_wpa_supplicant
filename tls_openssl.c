@@ -43,7 +43,7 @@ struct tls_connection {
 	SSL *ssl;
 	BIO *ssl_in, *ssl_out;
 #ifndef OPENSSL_NO_ENGINE
-	ENGINE *engine;        /* functional reference to the engine */
+	ENGINE *engine;	/* functional reference to the engine */
 	EVP_PKEY *private_key; /* the private key if using engine */
 #endif /* OPENSSL_NO_ENGINE */
 	char *subject_match, *altsubject_match;
@@ -571,7 +571,7 @@ static void ssl_info_cb(const SSL *ssl, int where, int ret)
  * @pre: an array of commands and values that load an engine initialized
  *       in the engine specific function
  * @post: an array of commands and values that initialize an already loaded
- *        engine (or %NULL if not required)
+ *	engine (or %NULL if not required)
  * @id: the engine id of the engine to load (only required if post is not %NULL
  *
  * This function is a generic function that loads any openssl engine.
@@ -1092,6 +1092,34 @@ static int tls_load_ca_der(void *_ssl_ctx, const char *ca_cert)
 }
 #endif /* OPENSSL_NO_STDIO */
 
+#ifdef ANDROID
+static int add_cert_chain_from_blob(X509_STORE *store, char *value, int size)
+{
+	int i, ret = -1;
+	BIO *bio = NULL;
+	STACK_OF(X509_INFO) *stack = NULL;
+
+	bio = BIO_new(BIO_s_mem());
+	if (bio == NULL) goto end;
+	BIO_write(bio, value, size);
+	stack = PEM_X509_INFO_read_bio(bio, NULL, NULL, NULL);
+	if (stack == NULL) goto end;
+	for (i = 0; i < sk_X509_INFO_num(stack); ++i) {
+		X509_INFO *info = sk_X509_INFO_value(stack, i);
+		if (info->x509) {
+			X509_STORE_add_cert(store, info->x509);
+		}
+		if (info->crl) {
+			X509_STORE_add_crl(store, info->crl);
+		}
+	}
+	sk_X509_INFO_pop_free(stack, X509_INFO_free);
+	ret = 0;
+end:
+	if (bio != NULL) BIO_free(bio);
+	return ret;
+}
+#endif
 
 static int tls_connection_ca_cert(void *_ssl_ctx, struct tls_connection *conn,
 				  const char *ca_cert, const u8 *ca_cert_blob,
@@ -1110,8 +1138,12 @@ static int tls_connection_ca_cert(void *_ssl_ctx, struct tls_connection *conn,
 			   "certificate store", __func__);
 		return -1;
 	}
-
 	if (ca_cert_blob) {
+#ifdef ANDROID
+		return add_cert_chain_from_blob(ssl_ctx->cert_store,
+						(char*)ca_cert_blob,
+						(int)ca_cert_blob_len);
+#else
 		X509 *cert = d2i_X509(NULL, (OPENSSL_d2i_TYPE) &ca_cert_blob,
 				      ca_cert_blob_len);
 		if (cert == NULL) {
@@ -1141,7 +1173,9 @@ static int tls_connection_ca_cert(void *_ssl_ctx, struct tls_connection *conn,
 			   "to certificate store", __func__);
 		SSL_set_verify(conn->ssl, SSL_VERIFY_PEER, tls_verify_cb);
 		return 0;
+#endif
 	}
+
 
 #ifdef CONFIG_NATIVE_WINDOWS
 	if (ca_cert && tls_cryptoapi_ca_cert(ssl_ctx, conn->ssl, ca_cert) ==
