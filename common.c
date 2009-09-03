@@ -16,10 +16,6 @@
 
 #include "common.h"
 
-#ifdef ANDROID
-#include <cutils/log.h>
-#endif
-
 
 #ifdef CONFIG_DEBUG_FILE
 static FILE *out_file = NULL;
@@ -144,7 +140,30 @@ void wpa_get_ntp_timestamp(u8 *buf)
 	os_memcpy(buf + 4, (u8 *) &usec, 4);
 }
 
+#ifdef ANDROID
 
+#include <android/log.h>
+
+void android_printf(int level, char *format, ...)
+{
+	if (level >= wpa_debug_level) {
+		va_list ap;
+		if (level == MSG_ERROR) {
+			level = ANDROID_LOG_ERROR;
+		} else if (level == MSG_WARNING) {
+			level = ANDROID_LOG_WARN;
+		} else if (level == MSG_INFO) {
+			level = ANDROID_LOG_INFO;
+		} else {
+			level = ANDROID_LOG_DEBUG;
+		}
+		va_start(ap, format);
+		__android_log_vprint(level, "wpa_supplicant", format, ap);
+		va_end(ap);
+	}
+}
+
+#else /* ANDROID */
 
 #ifndef CONFIG_NO_STDOUT_DEBUG
 
@@ -195,20 +214,6 @@ void wpa_printf(int level, char *fmt, ...)
 #ifdef CONFIG_DEBUG_FILE
 		}
 #endif /* CONFIG_DEBUG_FILE */
-#ifdef ANDROID
-        if (level == MSG_DEBUG)
-            level = ANDROID_LOG_DEBUG;
-        else if (level == MSG_INFO)
-            level = ANDROID_LOG_INFO;
-        else if (level == MSG_WARNING)
-            level = ANDROID_LOG_WARN;
-        else if (level == MSG_ERROR)
-            level = ANDROID_LOG_ERROR;
-        else
-            level = ANDROID_LOG_DEBUG;
-
-        LOG_PRI_VA(level, "wpa_supplicant", fmt, ap);
-#endif
 	}
 	va_end(ap);
 }
@@ -392,6 +397,7 @@ void wpa_debug_close_file(void)
 
 #endif /* CONFIG_NO_STDOUT_DEBUG */
 
+#endif /* ANDROID */
 
 #ifndef CONFIG_NO_WPA_MSG
 static wpa_msg_cb_func wpa_msg_cb = NULL;
