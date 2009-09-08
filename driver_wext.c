@@ -31,6 +31,7 @@
 #include "priv_netlink.h"
 #include "driver_wext.h"
 #include "wpa.h"
+#include "wpa_ctrl.h"
 
 #ifdef CONFIG_CLIENT_MLME
 #include <netpacket/packet.h>
@@ -81,7 +82,7 @@ struct wpa_driver_wext_data {
 
 	int scan_complete_events;
 
-	u8 *ssid[32];
+	u8 ssid[32];
 	unsigned int ssid_len;
 };
 
@@ -409,6 +410,12 @@ wpa_driver_wext_event_wireless_custom(void *ctx, char *custom)
 		}
 		wpa_supplicant_event(ctx, EVENT_STKSTART, &data);
 #endif /* CONFIG_PEERKEY */
+	/* Android uses the "started" event to take wpa_supplicant out of "STOPPED" mode
+	 * Without such a message, the supplicant will not reconnect to an AP following
+	 * suspend/resume
+	 */
+	} else if (os_strncmp(custom, "STARTED", 7) == 0) {
+		wpa_msg(ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STARTED");
 	}
 }
 
