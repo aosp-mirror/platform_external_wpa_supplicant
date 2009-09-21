@@ -64,8 +64,8 @@ static void free_temporal_blobs()
 	while (p != NULL) {
 		struct temporal_blobs *q = p;
 		p = p->next;
-		if (q->blob) free(q->blob);
-		free(q);
+		if (q->blob) os_free(q->blob);
+		os_free(q);
 	}
 	ks_blobs = NULL;
 }
@@ -140,7 +140,7 @@ err:
 	if (cert) X509_free(cert);
 	if (pkey) EVP_PKEY_free(pkey);
 	if (buf) {
-		free(blob->data);
+		os_free(blob->data);
 		blob->data = buf;
 		blob->len = len;
 	}
@@ -148,17 +148,19 @@ err:
 
 struct wpa_config_blob *get_blob_from_keystore(const char *name)
 {
-	int len;
-	char *buf = keystore_get((char*)name, &len);
+	char buf[KEYSTORE_MESSAGE_SIZE];
+	int len = keystore_get(name, buf);
 	struct wpa_config_blob *blob = NULL;
 
-	if (buf) {
-		if ((blob = os_zalloc(sizeof(*blob))) != NULL) {
+	if (len != -1) {
+		if ((blob = os_zalloc(sizeof(*blob))) != NULL &&
+		    (blob->data = os_zalloc(len + 1)) != NULL) {
 			blob->name = os_strdup(name);
-			blob->data = (unsigned char*)buf;
+			memcpy(blob->data, buf, len);
 			blob->len = len;
-		} else {
-			free(buf);
+		} else if (blob) {
+			os_free(blob);
+			blob = NULL;
 		}
 	}
 	if (blob) {
