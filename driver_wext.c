@@ -1930,9 +1930,15 @@ wpa_driver_wext_associate(void *priv,
 	struct wpa_driver_wext_data *drv = priv;
 	int ret = 0;
 	int allow_unencrypted_eapol;
-	int value;
+	int value, flags;
 
 	wpa_printf(MSG_DEBUG, "%s", __FUNCTION__);
+
+	if (wpa_driver_wext_get_ifflags(drv, &flags) == 0) {
+		if (!(flags & IFF_UP)) {
+			wpa_driver_wext_set_ifflags(drv, flags | IFF_UP);
+		}
+	}
 
 	/*
 	 * If the driver did not support SIOCSIWAUTH, fallback to
