@@ -181,7 +181,7 @@ int os_program_init(void)
 	/* We ignore errors here since errors are normal if we
 	 * are already running as non-root.
 	 */
-	gid_t groups[] = { AID_INET, AID_WIFI, AID_KEYSTORE };
+	gid_t groups[] = { AID_INET, AID_WIFI };
 	setgroups(sizeof(groups)/sizeof(groups[0]), groups);
 
 	prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
