@@ -1159,7 +1159,7 @@ static int tls_connection_ca_cert(void *_ssl_ctx, struct tls_connection *conn,
 	}
 
 #ifdef ANDROID
-	if (strncmp("keystore://", ca_cert, 11) == 0) {
+	if (ca_cert && strncmp("keystore://", ca_cert, 11) == 0) {
 		BIO *bio = BIO_from_keystore(&ca_cert[11]);
 		STACK_OF(X509_INFO) *stack = NULL;
 		int i;
