@@ -2498,7 +2498,18 @@ int wpa_driver_wext_get_version(struct wpa_driver_wext_data *drv)
 }
 
 #ifdef ANDROID
-int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len )
+static char *wpa_driver_get_country_code(int channels)
+{
+	char *country = "US"; /* WEXT_NUMBER_SCAN_CHANNELS_FCC */
+
+	if (channels == WEXT_NUMBER_SCAN_CHANNELS_ETSI)
+		country = "EU";
+	else if( channels == WEXT_NUMBER_SCAN_CHANNELS_MKK1)
+		country = "JP";
+	return country;
+}
+
+static int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len )
 {
 	struct wpa_driver_wext_data *drv = priv;
 	struct wpa_supplicant *wpa_s = (struct wpa_supplicant *)(drv->ctx);
@@ -2518,7 +2529,13 @@ int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len
 			ret = -1;
 		return ret;
 	}
+	else if( os_strncasecmp(cmd, "SCAN-CHANNELS", 13) == 0 ) {
+		int no_of_chan;
 
+		no_of_chan = atoi(cmd + 13);
+		os_snprintf(cmd, MAX_DRV_CMD_SIZE, "COUNTRY %s",
+			wpa_driver_get_country_code(no_of_chan));
+	}
 	os_memset(&iwr, 0, sizeof(iwr));
 	os_strncpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
 	os_memcpy(buf, cmd, strlen(cmd) + 1);
