@@ -2519,15 +2519,7 @@ static int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t 
 	wpa_printf(MSG_DEBUG, "%s %s len = %d", __func__, cmd, buf_len);
 
 	if (os_strcasecmp(cmd, "RSSI-APPROX") == 0) {
-		if (wpa_s->current_ssid) {
-			wpa_printf(MSG_DEBUG, "approx: %s\n", wpa_s->current_ssid->ssid);
-			ret = wpa_s->current_ssid->ssid_len;
-			os_memcpy(buf, wpa_s->current_ssid->ssid, ret);
-			ret += snprintf(&buf[ret], buf_len-ret, " rssi %d\n", wpa_s->rssi);
-		}
-		else
-			ret = -1;
-		return ret;
+		os_strncpy(cmd, "RSSI", MAX_DRV_CMD_SIZE);
 	}
 	else if( os_strncasecmp(cmd, "SCAN-CHANNELS", 13) == 0 ) {
 		int no_of_chan;
