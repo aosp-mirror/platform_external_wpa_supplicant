@@ -140,8 +140,11 @@ struct wpa_ctrl * wpa_ctrl_open(const char *ctrl_path)
 
 void wpa_ctrl_close(struct wpa_ctrl *ctrl)
 {
+	if (ctrl == NULL)
+		return;
 	unlink(ctrl->local.sun_path);
-	close(ctrl->s);
+	if (ctrl->s >= 0)
+		close(ctrl->s);
 	os_free(ctrl);
 }
 
