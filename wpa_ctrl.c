@@ -153,7 +153,7 @@ void wpa_ctrl_close(struct wpa_ctrl *ctrl)
  * event of crashes that prevented them from being removed as part
  * of the normal orderly shutdown.
  */
-void wpa_ctrl_cleanup()
+void wpa_ctrl_cleanup(void)
 {
     DIR *dir;
     struct dirent entry;
@@ -292,7 +292,11 @@ int wpa_ctrl_request(struct wpa_ctrl *ctrl, const char *cmd, size_t cmd_len,
 	os_free(cmd_buf);
 
 	for (;;) {
+#ifdef ANDROID
+		tv.tv_sec = 10;
+#else
 		tv.tv_sec = 2;
+#endif
 		tv.tv_usec = 0;
 		FD_ZERO(&rfds);
 		FD_SET(ctrl->s, &rfds);

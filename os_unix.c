@@ -16,6 +16,12 @@
 
 #include "os.h"
 
+#ifdef ANDROID
+#include <linux/capability.h>
+#include <linux/prctl.h>
+#include <private/android_filesystem_config.h>
+#endif
+
 void os_sleep(os_time_t sec, os_time_t usec)
 {
 	if (sec)
@@ -171,6 +177,28 @@ char * os_rel2abs_path(const char *rel_path)
 
 int os_program_init(void)
 {
+#ifdef ANDROID
+	/* We ignore errors here since errors are normal if we
+	 * are already running as non-root.
+	 */
+	gid_t groups[] = { AID_INET, AID_WIFI, AID_KEYSTORE };
+	setgroups(sizeof(groups)/sizeof(groups[0]), groups);
+
+	prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
+
+	setgid(AID_WIFI);
+	setuid(AID_WIFI);
+
+	struct __user_cap_header_struct header;
+	struct __user_cap_data_struct cap;
+	header.version = _LINUX_CAPABILITY_VERSION;
+	header.pid = 0;
+	cap.effective = cap.permitted =
+		(1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW);
+	cap.inheritable = 0;
+	capset(&header, &cap);
+#endif
+
 	return 0;
 }
 

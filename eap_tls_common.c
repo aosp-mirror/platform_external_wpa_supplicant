@@ -23,152 +23,6 @@
 #include "tls.h"
 #include "config.h"
 
-#ifdef ANDROID
-#include <openssl/pem.h>
-#include <openssl/x509v3.h>
-#include <keystore_get.h>
-
-#define PEM_CERT_KEYWORD "CERTIFICATE"
-#define PEM_PRIVATEKEY_KEYWORD "PRIVATE KEY"
-
-struct temporal_blobs {
-	struct temporal_blobs *next;
-	struct wpa_config_blob *blob;
-};
-
-static struct temporal_blobs *ks_blobs = NULL;
-
-/**
- * The blob data can not be inserted into config->blobs structure, since the 
- * protected cert/key may be rewritten to config file. We have to maintain the
- * keystore-only blobs.
- */
-static int add_temporal_blob(struct wpa_config_blob *blob)
-{
-	struct temporal_blobs *p;
-
-	p = (struct temporal_blobs*) malloc(sizeof(struct temporal_blobs));
-	if (p == NULL) {
-		return -1;
-	}
-	p->next = ks_blobs;
-	p->blob = blob;
-	ks_blobs = p;
-	return 0;
-}
-
-static void free_temporal_blobs()
-{
-	struct temporal_blobs *p = ks_blobs;
-
-	while (p != NULL) {
-		struct temporal_blobs *q = p;
-		p = p->next;
-		if (q->blob) free(q->blob);
-		free(q);
-	}
-	ks_blobs = NULL;
-}
-
-typedef enum {
-	PEM_CERTIFICATE,
-	PEM_PRIVATE_KEY,
-	DER_FORMAT,
-	UNKNOWN_CERT_TYPE
-} CERT_TYPE;
-
-/**
- * Tell the encoding format and type of the certificate/key by examining if
- * there is "CERTIFICATE" or "PRIVATE KEY" in the blob. If not, at least we
- * can test if the first byte is '0'.
- */
-static CERT_TYPE get_blob_type(struct wpa_config_blob *blob)
-{
-	CERT_TYPE type = UNKNOWN_CERT_TYPE;
-	unsigned char p = blob->data[blob->len - 1];
-
-	blob->data[blob->len - 1] = 0;
-	if (strstr(blob->data, PEM_CERT_KEYWORD) != NULL) {
-		type = PEM_CERTIFICATE;
-	} else if (strstr(blob->data, PEM_PRIVATEKEY_KEYWORD) != NULL) {
-		type = PEM_PRIVATE_KEY;
-	} else if (blob->data[0] == '0') {
-		type = DER_FORMAT;
-	}
-	blob->data[blob->len - 1] = p;
-	return type;
-}
-
-/**
- * convert_PEM_to_DER() provides the converion from PEM format to DER one, since
- * original certificate handling does not accept the PEM format for blob data.
- * Therefore, we need to convert the data to DER format if it is PEM-format.
- */
-static void convert_PEM_to_DER(struct wpa_config_blob *blob)
-{
-	X509 *cert = NULL;
-	EVP_PKEY *pkey = NULL;
-	BIO *bp = NULL;
-	unsigned char *buf = NULL;
-	int len = 0;
-	CERT_TYPE type;
-
-	if (blob->len < sizeof(PEM_CERT_KEYWORD)) {
-		return;
-	}
-
-	if (((type = get_blob_type(blob)) != PEM_CERTIFICATE) &&
-		(type != PEM_PRIVATE_KEY)) {
-		return;
-	}
-
-	bp = BIO_new(BIO_s_mem());
-	if (!bp) goto err;
-	if (!BIO_write(bp, blob->data, blob->len)) goto err;
-	if (type == PEM_CERTIFICATE) {
-		if ((cert = PEM_read_bio_X509(bp, NULL, NULL, NULL)) != NULL) {
-			len = i2d_X509(cert, &buf);
-		}
-	} else {
-		if ((pkey = PEM_read_bio_PrivateKey(bp, NULL, NULL, NULL)) != NULL) {
-			len = i2d_PrivateKey(pkey, &buf);
-		}
-	}
-
-err:
-	if (bp) BIO_free(bp);
-	if (cert) X509_free(cert);
-	if (pkey) EVP_PKEY_free(pkey);
-	if (buf) {
-		free(blob->data);
-		blob->data = buf;
-		blob->len = len;
-	}
-}
-
-struct wpa_config_blob *get_blob_from_keystore(const char *name)
-{
-	int len;
-	char *buf = keystore_get((char*)name, &len);
-	struct wpa_config_blob *blob = NULL;
-
-	if (buf) {
-		if ((blob = os_zalloc(sizeof(*blob))) != NULL) {
-			blob->name = os_strdup(name);
-			blob->data = (unsigned char*)buf;
-			blob->len = len;
-		} else {
-			free(buf);
-		}
-	}
-	if (blob) {
-		convert_PEM_to_DER(blob);
-		add_temporal_blob(blob);
-	}
-	return blob;
-}
-#endif
-
 static int eap_tls_check_blob(struct eap_sm *sm, const char **name,
 			      const u8 **data, size_t *data_len)
 {
@@ -178,11 +32,6 @@ static int eap_tls_check_blob(struct eap_sm *sm, const char **name,
 		return 0;
 
 	blob = eap_get_config_blob(sm, *name + 7);
-#ifdef ANDROID
-	if(blob == NULL) {
-		blob = get_blob_from_keystore(*name + 7);
-	}
-#endif
 	if (blob == NULL) {
 		wpa_printf(MSG_ERROR, "%s: Named configuration blob '%s' not "
 			   "found", __func__, *name + 7);
@@ -346,9 +195,6 @@ int eap_tls_ssl_init(struct eap_sm *sm, struct eap_ssl_data *data,
 	ret = 0;
 
 done:
-#ifdef ANDROID
-	free_temporal_blobs();
-#endif
 	return ret;
 }
 

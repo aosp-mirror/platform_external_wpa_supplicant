@@ -33,9 +33,15 @@ endif
 # To ignore possible wrong network configurations
 L_CFLAGS += -DWPA_IGNORE_CONFIG_ERRORS
 
+# To allow non-ASCII characters in SSID
+L_CFLAGS += -DWPA_UNICODE_SSID
+
+# OpenSSL is configured without engines on Android
+L_CFLAGS += -DOPENSSL_NO_ENGINE
+
 INCLUDES = external/openssl/include frameworks/base/cmds/keystore
   
-OBJS = config.c common.c md5.c md4.c rc4.c sha1.c des.c if_index.c
+OBJS = config.c common.c md5.c md4.c rc4.c sha1.c des.c
 OBJS_p = wpa_passphrase.c sha1.c md5.c md4.c common.c des.c
 OBJS_c = wpa_cli.c wpa_ctrl.c
 
@@ -661,7 +667,10 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE := wpa_supplicant
 ifdef CONFIG_DRIVER_CUSTOM
-LOCAL_STATIC_LIBRARIES := libCustomWifi libWifiApi
+LOCAL_STATIC_LIBRARIES := libCustomWifi
+endif
+ifneq ($(BOARD_WPA_SUPPLICANT_PRIVATE_LIB),)
+LOCAL_STATIC_LIBRARIES += $(BOARD_WPA_SUPPLICANT_PRIVATE_LIB)
 endif
 LOCAL_SHARED_LIBRARIES := libc libcutils libcrypto libssl
 LOCAL_CFLAGS := $(L_CFLAGS)
