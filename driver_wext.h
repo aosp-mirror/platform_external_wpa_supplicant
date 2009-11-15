@@ -45,4 +45,13 @@ void wpa_driver_wext_deinit(void *priv);
 int wpa_driver_wext_set_operstate(void *priv, int state);
 int wpa_driver_wext_get_version(struct wpa_driver_wext_data *drv);
 
+#ifdef ANDROID
+#define WEXT_NUMBER_SCAN_CHANNELS_FCC	11
+#define WEXT_NUMBER_SCAN_CHANNELS_ETSI	13
+#define WEXT_NUMBER_SCAN_CHANNELS_MKK1	14
+
+#define WPA_DRIVER_WEXT_WAIT_US		400000
+#define MAX_DRV_CMD_SIZE		248
+#endif
+
 #endif /* DRIVER_WEXT_H */

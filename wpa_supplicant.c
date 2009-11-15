@@ -492,6 +492,7 @@ void wpa_blacklist_clear(struct wpa_supplicant *wpa_s)
  */
 void wpa_supplicant_req_scan(struct wpa_supplicant *wpa_s, int sec, int usec)
 {
+#ifndef ANDROID
 	/* If there's at least one network that should be specifically scanned
 	 * then don't cancel the scan and reschedule.  Some drivers do
 	 * background scanning which generates frequent scan results, and that
@@ -513,6 +514,7 @@ void wpa_supplicant_req_scan(struct wpa_supplicant *wpa_s, int sec, int usec)
 			return;
 		}
 	}
+#endif
 
 	wpa_msg(wpa_s, MSG_DEBUG, "Setting scan request: %d sec %d usec",
 		sec, usec);
@@ -954,7 +956,11 @@ int wpa_supplicant_reload_configuration(struct wpa_supplicant *wpa_s)
 
 	wpa_supplicant_clear_status(wpa_s);
 	wpa_s->reassociate = 1;
+#ifdef ANDROID
+	wpa_supplicant_req_scan(wpa_s, 2, 0);
+#else
 	wpa_supplicant_req_scan(wpa_s, 0, 0);
+#endif
 	wpa_msg(wpa_s, MSG_DEBUG, "Reconfiguration completed");
 	return 0;
 }
@@ -1105,6 +1111,8 @@ static void wpa_supplicant_scan(void *eloop_ctx, void *timeout_ctx)
 		wpa_printf(MSG_WARNING, "Failed to initiate AP scan.");
 		wpa_supplicant_req_scan(wpa_s, 10, 0);
 	}
+	else
+		wpa_s->scan_ongoing = 1;
 }
 
 
@@ -1385,6 +1393,8 @@ void wpa_supplicant_associate(struct wpa_supplicant *wpa_s,
 			wpa_ssid_txt(bss->ssid, bss->ssid_len), bss->freq);
 		os_memset(wpa_s->bssid, 0, ETH_ALEN);
 		os_memcpy(wpa_s->pending_bssid, bss->bssid, ETH_ALEN);
+		wpa_s->link_speed = bss->maxrate;
+		wpa_s->rssi = bss->level;
 	} else {
 		wpa_msg(wpa_s, MSG_INFO, "Trying to associate with SSID '%s'",
 			wpa_ssid_txt(ssid->ssid, ssid->ssid_len));

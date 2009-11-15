@@ -642,6 +642,7 @@ static int wpa_supplicant_ctrl_iface_select_network(
 		ssid = ssid->next;
 	}
 	wpa_s->reassociate = 1;
+	wpa_s->prev_scan_ssid = BROADCAST_SSID_SCAN;
 	wpa_supplicant_req_scan(wpa_s, 0, 0);
 
 	return 0;
@@ -670,7 +671,11 @@ static int wpa_supplicant_ctrl_iface_enable_network(
 		 * Try to reassociate since there is no current configuration
 		 * and a new network was made available. */
 		wpa_s->reassociate = 1;
+#ifdef ANDROID
+		wpa_supplicant_req_scan(wpa_s, 2, 0);
+#else
 		wpa_supplicant_req_scan(wpa_s, 0, 0);
+#endif
 	}
 	ssid->disabled = 0;
 
@@ -1249,8 +1254,12 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
 		wpa_s->disconnected = 1;
 		wpa_supplicant_disassociate(wpa_s, REASON_DEAUTH_LEAVING);
 	} else if (os_strcmp(buf, "SCAN") == 0) {
-		wpa_s->scan_req = 2;
-		wpa_supplicant_req_scan(wpa_s, 0, 0);
+		if (!wpa_s->scan_ongoing) {
+			wpa_s->scan_req = 2;
+			wpa_supplicant_req_scan(wpa_s, 0, 0);
+		}
+		else
+			wpa_printf(MSG_DEBUG, "Ongoing Scan action...");
 	} else if (os_strcmp(buf, "SCAN_RESULTS") == 0) {
 		reply_len = wpa_supplicant_ctrl_iface_scan_results(
 			wpa_s, reply, reply_size);
