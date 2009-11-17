@@ -1126,6 +1126,10 @@ int wpa_driver_wext_scan(void *priv, const u8 *ssid, size_t ssid_len)
 	struct iwreq iwr;
 	int ret = 0, timeout;
 	struct iw_scan_req req;
+#ifdef ANDROID
+	struct wpa_supplicant *wpa_s = (struct wpa_supplicant *)(drv->ctx);
+	int scan_probe_flag = 0;
+#endif
 
 	if (ssid_len > IW_ESSID_MAX_SIZE) {
 		wpa_printf(MSG_DEBUG, "%s: too long SSID (%lu)",
@@ -1136,7 +1140,14 @@ int wpa_driver_wext_scan(void *priv, const u8 *ssid, size_t ssid_len)
 	os_memset(&iwr, 0, sizeof(iwr));
 	os_strncpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
 
+#ifdef ANDROID
+	if (wpa_s->prev_scan_ssid != BROADCAST_SSID_SCAN) {
+		scan_probe_flag = wpa_s->prev_scan_ssid->scan_ssid;
+	}
+	if (scan_probe_flag && (ssid && ssid_len)) {
+#else
 	if (ssid && ssid_len) {
+#endif
 		os_memset(&req, 0, sizeof(req));
 		req.essid_len = ssid_len;
 		req.bssid.sa_family = ARPHRD_ETHER;
