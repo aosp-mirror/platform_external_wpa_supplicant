@@ -2520,12 +2520,12 @@ static char *wpa_driver_get_country_code(int channels)
 	return country;
 }
 
-static int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len )
+static int wpa_driver_priv_driver_cmd(void *priv, char *cmd, char *buf, size_t buf_len)
 {
 	struct wpa_driver_wext_data *drv = priv;
 	struct wpa_supplicant *wpa_s = (struct wpa_supplicant *)(drv->ctx);
 	struct iwreq iwr;
-	int ret = 0;
+	int ret = 0, flags;
 
 	wpa_printf(MSG_DEBUG, "%s %s len = %d", __func__, cmd, buf_len);
 
@@ -2539,6 +2539,15 @@ static int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t 
 		os_snprintf(cmd, MAX_DRV_CMD_SIZE, "COUNTRY %s",
 			wpa_driver_get_country_code(no_of_chan));
 	}
+	else if (os_strcasecmp(cmd, "STOP") == 0) {
+		if ((wpa_driver_wext_get_ifflags(drv, &flags) == 0) &&
+		    (flags & IFF_UP)) {
+			wpa_printf(MSG_ERROR, "WEXT: %s when iface is UP",
+				cmd);
+			wpa_driver_wext_set_ifflags(drv, flags & ~IFF_UP);
+		}
+	}
+
 	os_memset(&iwr, 0, sizeof(iwr));
 	os_strncpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
 	os_memcpy(buf, cmd, strlen(cmd) + 1);
