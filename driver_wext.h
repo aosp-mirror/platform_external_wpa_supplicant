@@ -52,6 +52,7 @@ int wpa_driver_wext_get_version(struct wpa_driver_wext_data *drv);
 
 #define WPA_DRIVER_WEXT_WAIT_US		400000
 #define MAX_DRV_CMD_SIZE		248
+#define WEXT_NUMBER_SEQUENTIAL_ERRORS	4
 #endif
 
 #endif /* DRIVER_WEXT_H */
