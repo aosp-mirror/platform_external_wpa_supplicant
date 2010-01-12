@@ -84,6 +84,7 @@ struct wpa_driver_wext_data {
 	char mlmedev[IFNAMSIZ + 1];
 
 	int scan_complete_events;
+	int errors;
 };
 
 
@@ -1001,6 +1002,7 @@ void * wpa_driver_wext_init(void *ctx, const char *ifname)
 
 	drv->mlme_sock = -1;
 
+	drv->errors = 0;
 	wpa_driver_wext_finish_drv_init(drv);
 
 	return drv;
@@ -1126,6 +1128,10 @@ int wpa_driver_wext_scan(void *priv, const u8 *ssid, size_t ssid_len)
 	struct iwreq iwr;
 	int ret = 0, timeout;
 	struct iw_scan_req req;
+#ifdef ANDROID
+	struct wpa_supplicant *wpa_s = (struct wpa_supplicant *)(drv->ctx);
+	int scan_probe_flag = 0;
+#endif
 
 	if (ssid_len > IW_ESSID_MAX_SIZE) {
 		wpa_printf(MSG_DEBUG, "%s: too long SSID (%lu)",
@@ -1136,7 +1142,14 @@ int wpa_driver_wext_scan(void *priv, const u8 *ssid, size_t ssid_len)
 	os_memset(&iwr, 0, sizeof(iwr));
 	os_strncpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
 
+#ifdef ANDROID
+	if (wpa_s->prev_scan_ssid != BROADCAST_SSID_SCAN) {
+		scan_probe_flag = wpa_s->prev_scan_ssid->scan_ssid;
+	}
+	if (scan_probe_flag && (ssid && ssid_len)) {
+#else
 	if (ssid && ssid_len) {
+#endif
 		os_memset(&req, 0, sizeof(req));
 		req.essid_len = ssid_len;
 		req.bssid.sa_family = ARPHRD_ETHER;
@@ -2509,12 +2522,12 @@ static char *wpa_driver_get_country_code(int channels)
 	return country;
 }
 
-static int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t buf_len )
+static int wpa_driver_priv_driver_cmd(void *priv, char *cmd, char *buf, size_t buf_len)
 {
 	struct wpa_driver_wext_data *drv = priv;
 	struct wpa_supplicant *wpa_s = (struct wpa_supplicant *)(drv->ctx);
 	struct iwreq iwr;
-	int ret = 0;
+	int ret = 0, flags;
 
 	wpa_printf(MSG_DEBUG, "%s %s len = %d", __func__, cmd, buf_len);
 
@@ -2528,6 +2541,19 @@ static int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t 
 		os_snprintf(cmd, MAX_DRV_CMD_SIZE, "COUNTRY %s",
 			wpa_driver_get_country_code(no_of_chan));
 	}
+	else if (os_strcasecmp(cmd, "STOP") == 0) {
+		if ((wpa_driver_wext_get_ifflags(drv, &flags) == 0) &&
+		    (flags & IFF_UP)) {
+			wpa_printf(MSG_ERROR, "WEXT: %s when iface is UP", cmd);
+			wpa_driver_wext_set_ifflags(drv, flags & ~IFF_UP);
+		}
+	}
+	else if( os_strcasecmp(cmd, "RELOAD") == 0 ) {
+		wpa_printf(MSG_DEBUG,"Reload command");
+		wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "HANGED");
+		return ret;
+	}
+
 	os_memset(&iwr, 0, sizeof(iwr));
 	os_strncpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
 	os_memcpy(buf, cmd, strlen(cmd) + 1);
@@ -2538,9 +2564,16 @@ static int wpa_driver_priv_driver_cmd( void *priv, char *cmd, char *buf, size_t 
 		perror("ioctl[SIOCSIWPRIV]");
 	}
 
-	if (ret < 0)
+	if (ret < 0) {
 		wpa_printf(MSG_ERROR, "%s failed", __func__);
+		drv->errors++;
+		if (drv->errors > WEXT_NUMBER_SEQUENTIAL_ERRORS) {
+			drv->errors = 0;
+			wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "HANGED");
+		}
+	}
 	else {
+		drv->errors = 0;
 		ret = 0;
 		if ((os_strcasecmp(cmd, "RSSI") == 0) ||
 		    (os_strcasecmp(cmd, "LINKSPEED") == 0) ||
