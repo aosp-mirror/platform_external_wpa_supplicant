@@ -190,7 +190,7 @@ void wpa_ctrl_cleanup(void)
 
 #else /* CONFIG_CTRL_IFACE_UNIX */
 #ifdef ANDROID
-void wpa_ctrl_cleanup()
+void wpa_ctrl_cleanup(void)
 {
 }
 #endif /* ANDROID */
