@@ -417,6 +417,8 @@ int eloop_register_signal_terminate(eloop_signal_handler handler,
 	int ret = eloop_register_signal(SIGINT, handler, user_data);
 	if (ret == 0)
 		ret = eloop_register_signal(SIGTERM, handler, user_data);
+	if (ret == 0)
+		ret = eloop_register_signal(SIGSEGV, handler, user_data);
 	return ret;
 }
 
