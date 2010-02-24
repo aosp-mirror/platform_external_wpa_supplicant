@@ -796,6 +796,10 @@ static int wpa_supplicant_ctrl_iface_set_network(
 		wpa_printf(MSG_DEBUG, "CTRL_IFACE: Failed to set network "
 			   "variable '%s'", name);
 		return -1;
+	} else {
+		if (os_strcmp(name, "priority") == 0) {
+			wpa_config_update_prio_list(wpa_s->conf);
+		}
 	}
 
 	if (wpa_s->current_ssid == ssid) {
