@@ -45,7 +45,7 @@ static BIO *BIO_from_keystore(const char *key)
 {
 	BIO *bio = NULL;
 	char value[KEYSTORE_MESSAGE_SIZE];
-	int length = keystore_get(key, value);
+	int length = keystore_get(key, strlen(key), value);
 	if (length != -1 && (bio = BIO_new(BIO_s_mem())) != NULL) {
 		BIO_write(bio, value, length);
 	}
