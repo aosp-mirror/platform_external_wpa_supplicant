@@ -1132,6 +1132,11 @@ static int wpa_supplicant_ctrl_iface_ap_scan(
 
 	if (ap_scan < 0 || ap_scan > 2)
 		return -1;
+#ifdef ANDROID
+	if ((ap_scan == 2) && (wpa_s->wpa_state != WPA_COMPLETED)) {
+		return -1;
+	}
+#endif
 	wpa_s->conf->ap_scan = ap_scan;
 	return 0;
 }
@@ -1258,12 +1263,17 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
 		wpa_s->disconnected = 1;
 		wpa_supplicant_disassociate(wpa_s, REASON_DEAUTH_LEAVING);
 	} else if (os_strcmp(buf, "SCAN") == 0) {
-		if (!wpa_s->scan_ongoing) {
+#ifdef ANDROID
+		if (!wpa_s->scan_ongoing && ((wpa_s->wpa_state <= WPA_SCANNING) ||
+			(wpa_s->wpa_state >= WPA_COMPLETED))) {
+#endif
 			wpa_s->scan_req = 2;
 			wpa_supplicant_req_scan(wpa_s, 0, 0);
-		}
-		else
+#ifdef ANDROID
+		} else {
 			wpa_printf(MSG_DEBUG, "Ongoing Scan action...");
+		}
+#endif
 	} else if (os_strcmp(buf, "SCAN_RESULTS") == 0) {
 		reply_len = wpa_supplicant_ctrl_iface_scan_results(
 			wpa_s, reply, reply_size);
