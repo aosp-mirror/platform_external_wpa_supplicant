@@ -1134,7 +1134,7 @@ static int wpa_supplicant_ctrl_iface_ap_scan(
 		return -1;
 #ifdef ANDROID
 	if ((ap_scan == 2) && (wpa_s->wpa_state != WPA_COMPLETED)) {
-		return -1;
+		return 0;
 	}
 #endif
 	wpa_s->conf->ap_scan = ap_scan;
