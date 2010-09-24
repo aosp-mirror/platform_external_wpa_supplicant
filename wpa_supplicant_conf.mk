@@ -17,10 +17,10 @@
 # Include this makefile to generate your hardware specific wpa_supplicant.conf
 # Requires: WIFI_DRIVER_SOCKET_IFACE
 
-WPA_SUPPLICANT_STORED_LOCAL_PATH := $(LOCAL_PATH)
 LOCAL_PATH := $(call my-dir)
 
 ########################
+include $(CLEAR_VARS)
 
 LOCAL_MODULE := wpa_supplicant.conf
 LOCAL_MODULE_CLASS := ETC
@@ -41,5 +41,3 @@ $(LOCAL_BUILT_MODULE) : $(WPA_SUPPLICANT_CONF_TEMPLATE) $(WPA_SUPPLICANT_CONF_SC
 		bash $(PRIVATE_WPA_SUPPLICANT_CONF_SCRIPT) $(PRIVATE_WPA_SUPPLICANT_CONF_TEMPLATE) > $@
 
 ########################
-
-LOCAL_PATH := $(WPA_SUPPLICANT_STORED_LOCAL_PATH)
